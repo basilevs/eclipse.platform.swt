@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.IntFunction;
 
 import org.eclipse.swt.SWT;
@@ -1253,11 +1254,12 @@ void depthFirstTraverse(TreeItem parent) {
 	}
 }
 
-private void breadthFirstTraverse(TreeItem parent) {
+private void breadthFirstTraverse(TreeItem parent, Consumer<TreeItem> visitor) {
 	Deque<TreeItem> queue = new ArrayDeque<>();
 	queue.add(parent);
 	while (!queue.isEmpty()) {
 		parent = queue.removeFirst();
+		visitor.accept(parent);
 		int count = parent.getItemCount();
 		for (int i = 0; i < count ; i++) {
 			queue.add(parent.getItem(i));
@@ -1358,13 +1360,34 @@ public void test_wideDepthFirstTraversalLinearGrowth() {
 private double measureWideBreadthFirstTraverse(int totalChildCount) {
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
-	return measureNanos(() -> breadthFirstTraverse(root));
+	return measureNanos(() -> breadthFirstTraverse(root, ignored -> {}));
 }
 
 @Test
 public void test_wideBreadthFirstTraversalLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
 		assertLinear("Depth first traversal", this::measureWideBreadthFirstTraverse);
+	});
+}
+
+@Test
+public void test_updateAllChildrenLinearGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("Update all children", this::measureUpdateAllChildren);
+	});
+}
+
+private double measureUpdateAllChildren(int totalChildCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	buildWideTree(root, totalChildCount - 1);
+	return measureNanos(() -> {
+		tree.setRedraw(false);
+		try {
+			String text = "" + System.currentTimeMillis();
+			breadthFirstTraverse(root, item -> item.setText(text));
+		} finally {
+			tree.setRedraw(true);
+		}
 	});
 }
 
