@@ -1686,14 +1686,19 @@ public void setItemCount (int count) {
 	checkWidget ();
 	count = Math.max (0, count);
 	ensureSizeAtLeast(items, count);
-	for ( Iterator<TreeItem> i =  items.listIterator(count); i.hasNext(); ) {
-		TreeItem item = i.next();
+	List<TreeItem> toDispose = new ArrayList<>(Math.max(0, items.size() - count));
+	List<TreeItem> extra = items.subList(count, items.size());
+	for (TreeItem item: extra) {
 		if (item != null) {
-			item.dispose();
+			toDispose.add(item);
 		}
-		i.remove();
+	}
+	toDispose.forEach(TreeItem::dispose);
+	extra = items.subList(count, items.size());
+	for (TreeItem item : extra) {
 		assert item == null;
 	}
+	extra.clear();
 
 	assert getItemCount() == count;
 	parent.setItemCount (this, count);
