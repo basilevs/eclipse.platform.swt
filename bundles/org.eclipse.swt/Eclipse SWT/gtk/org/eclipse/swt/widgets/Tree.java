@@ -191,19 +191,20 @@ TreeItem _getItem (long iter) {
 		parentIter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
 		GTK.gtk_tree_model_get_iter (modelHandle, parentIter, path);
 	}
-	items [id] = new TreeItem (this, parentIter, SWT.NONE, indices [indices.length -1], false);
+	items [id] = new TreeItem (this, parentIter == 0 ? null : _getItem(parentIter), SWT.NONE, indices [indices.length -1], false);
 	GTK.gtk_tree_path_free (path);
 	if (parentIter != 0) OS.g_free (parentIter);
 	return items [id];
 }
 
-TreeItem _getItem (long parentIter, int index) {
+TreeItem _getItem (int index) {
+	long parentHandle = 0;
 	long iter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
-	GTK.gtk_tree_model_iter_nth_child(modelHandle, iter, parentIter, index);
+	GTK.gtk_tree_model_iter_nth_child(modelHandle, iter, parentHandle, index);
 	int id = getId (iter, true);
 	OS.g_free (iter);
 	if (items [id] != null) return items [id];
-	return items [id] = new TreeItem (this, parentIter, SWT.NONE, index, false);
+	return items [id] = new TreeItem (this, null, SWT.NONE, index, false);
 }
 
 void reallocateIds(int newSize) {
@@ -1748,7 +1749,7 @@ public TreeItem getItem (int index) {
 	if (!(0 <= index && index < GTK.gtk_tree_model_iter_n_children (modelHandle, 0)))  {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
-	return _getItem (0, index);
+	return _getItem (index);
 }
 
 /**
@@ -1920,25 +1921,27 @@ int getItemHeightInPixels () {
  */
 public TreeItem [] getItems () {
 	checkWidget();
-	return getItems (0);
-}
-
-TreeItem [] getItems (long parent) {
-	int length = GTK.gtk_tree_model_iter_n_children (modelHandle, parent);
+	int length = GTK.gtk_tree_model_iter_n_children (modelHandle, 0);
 	TreeItem[] result = new TreeItem [length];
 	if (length == 0) return result;
 	if ((style & SWT.VIRTUAL) != 0) {
 		for (int i=0; i<length; i++) {
-			result [i] = _getItem (parent, i);
+			result [i] = _getItem (i);
 		}
 	} else {
 		int i = 0;
 		int[] index = new int [1];
 		long iter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
-		boolean valid = GTK.gtk_tree_model_iter_children (modelHandle, iter, parent);
+		boolean valid = GTK.gtk_tree_model_iter_children (modelHandle, iter, 0);
 		while (valid) {
 			GTK.gtk_tree_model_get (modelHandle, iter, ID_COLUMN, index, -1);
-			result [i++] = items [index [0]];
+			TreeItem item;
+			if (index[0] < 0) {
+				item = new TreeItem(this, null, SWT.NONE, i, false);
+			} else {
+				item = items [index [0]];
+			}
+			result [i++] = item;
 			valid = GTK.gtk_tree_model_iter_next (modelHandle, iter);
 		}
 		OS.g_free (iter);
@@ -2554,6 +2557,7 @@ long gtk_row_has_child_toggled (long model, long path, long iter) {
 	int [] index = new int [1];
 	GTK.gtk_tree_model_get (modelHandle, iter, ID_COLUMN, index, -1);
 	if (index [0] >= items.length) return 0;
+	if (index[0] < 0) return 0;
 	TreeItem item = items [index [0]];
 	if (item == null) return 0;
 	int childCount = GTK.gtk_tree_model_iter_n_children (modelHandle, item.handle);
@@ -2948,9 +2952,10 @@ void releaseWidget () {
 	currentItem = null;
 }
 
-void remove (long parentIter, int start, int end) {
+void remove (TreeItem parentItem, int start, int end) {
 	if (start > end) return;
-	int itemCount = GTK.gtk_tree_model_iter_n_children (modelHandle, parentIter);
+	long parentHandle = parentItem == null ? 0 : parentItem.handle;
+	int itemCount = GTK.gtk_tree_model_iter_n_children (modelHandle, parentHandle);
 	if (!(0 <= start && start <= end && end < itemCount)) {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
@@ -2959,7 +2964,7 @@ void remove (long parentIter, int start, int end) {
 	if (iter == 0) error (SWT.ERROR_NO_HANDLES);
 	try {
 		for (int i = start; i <= end; i++) {
-			GTK.gtk_tree_model_iter_nth_child (modelHandle, iter, parentIter, start);
+			GTK.gtk_tree_model_iter_nth_child (modelHandle, iter, parentHandle, start);
 			int[] value = new int[1];
 			GTK.gtk_tree_model_get (modelHandle, iter, ID_COLUMN, value, -1);
 			TreeItem item = value [0] != -1 ? items [value [0]] : null;
@@ -3501,40 +3506,36 @@ public void setInsertMark (TreeItem item, boolean before) {
 	GTK.gtk_tree_path_free (path [0]);
 }
 
-void setItemCount (long parentIter, int count) {
-	int itemCount = GTK.gtk_tree_model_iter_n_children (modelHandle, parentIter);
+void setItemCount (TreeItem parentItem, int count) {
+	long parentHandle = parentItem == null ? 0 : parentItem.handle;
+	int itemCount = GTK.gtk_tree_model_iter_n_children (modelHandle, parentHandle);
 	if (count == itemCount) return;
 	boolean isVirtual = (style & SWT.VIRTUAL) != 0;
 	if (!isVirtual) setRedraw (false);
-	if(parentIter == 0 && count == 0) {
+	if(parentItem == null && count == 0) {
 		removeAll();
 	} else {
-		remove (parentIter, count, itemCount - 1);
+		remove (parentItem, count, itemCount - 1);
 	}
-	if (isVirtual) {
-		long iters = OS.g_malloc (2 * GTK.GtkTreeIter_sizeof ());
-		if (iters == 0) error (SWT.ERROR_NO_HANDLES);
+	long iters = OS.g_malloc (2 * GTK.GtkTreeIter_sizeof ());
+	if (iters == 0) error (SWT.ERROR_NO_HANDLES);
 
-		long iterResult = iters;
-		long iterInsertAfter;
-		if (itemCount != 0) {
-			iterInsertAfter = iters + GTK.GtkTreeIter_sizeof ();
-			GTK.gtk_tree_model_iter_nth_child(modelHandle, iterInsertAfter, parentIter, itemCount - 1);
-		} else {
-			iterInsertAfter = 0;
-		}
-
-		for (int i=itemCount; i<count; i++) {
-			GTK.gtk_tree_store_insert_after (modelHandle, iterResult, parentIter, iterInsertAfter);
-			GTK.gtk_tree_store_set (modelHandle, iterResult, ID_COLUMN, -1, -1);
-		}
-
-		OS.g_free (iters);
+	long iterResult = iters;
+	long iterInsertAfter;
+	if (itemCount != 0) {
+		iterInsertAfter = iters + GTK.GtkTreeIter_sizeof ();
+		GTK.gtk_tree_model_iter_nth_child(modelHandle, iterInsertAfter, parentHandle, itemCount - 1);
 	} else {
-		for (int i=itemCount; i<count; i++) {
-			new TreeItem (this, parentIter, SWT.NONE, itemCount, true);
-		}
+		iterInsertAfter = 0;
 	}
+
+	for (int i=itemCount; i<count; i++) {
+		GTK.gtk_tree_store_insert_after (modelHandle, iterResult, parentHandle, iterInsertAfter);
+		GTK.gtk_tree_store_set (modelHandle, iterResult, ID_COLUMN, -1, -1);
+	}
+
+	OS.g_free (iters);
+
 	if (!isVirtual) setRedraw (true);
 	modelChanged = true;
 }
@@ -3557,7 +3558,7 @@ void setItemCount (long parentIter, int count) {
 public void setItemCount (int count) {
 	checkWidget ();
 	count = Math.max (0, count);
-	setItemCount (0, count);
+	setItemCount (null, count);
 }
 
 /**

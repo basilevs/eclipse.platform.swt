@@ -21,8 +21,12 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.function.IntFunction;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.TreeListener;
@@ -35,6 +39,7 @@ import org.eclipse.swt.widgets.TreeColumn;
 import org.eclipse.swt.widgets.TreeItem;
 import org.eclipse.test.Screenshots;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -1187,6 +1192,179 @@ public void test_setItemCount_itemCount2() {
 		item_0.getItem(5).dispose();
 		new TreeItem(item_0, 0, 0);
 		assertEquals(10, item_0.getItemCount());
+	});
+}
+
+private double measureGetItemNanos(int childCount) {
+	tree.setItemCount(1);
+	TreeItem parent = tree.getItem(0);
+	parent.setItemCount(childCount);
+	return measureNanos(() -> parent.getItem(childCount - 1));
+}
+
+/**
+ * Execution time of <code> TreeItem.getItem(int index)</code> should not depend on <code>index</code>
+ * @see https://github.com/eclipse-platform/eclipse.platform.swt/issues/882
+*/
+@Test
+public void test_getItemNoGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertConstant("getItem() execution time", this::measureGetItemNanos);
+	});
+}
+
+private double measureGetItemCountNanos(int childCount) {
+	tree.setItemCount(1);
+	TreeItem parent = tree.getItem(0);
+	parent.setItemCount(childCount);
+	return measureNanos(parent::getItemCount);
+}
+
+/**
+ * Execution time of <code> TreeItem.getItemCount()</code> should not depend on child count.
+ * @see https://github.com/eclipse-platform/eclipse.platform.swt/issues/882
+*/
+@Test
+public void test_getItemCountNoGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertConstant("itemCount execution time", this::measureGetItemCountNanos);
+	});
+}
+
+
+void buildBinaryTree(TreeItem parent, int totalChildCount) {
+	if (totalChildCount <= 0) {
+		return;
+	}
+	int leftCount = totalChildCount / 2;
+	int rightCount = totalChildCount - leftCount;
+	if (leftCount > 1) {
+		buildBinaryTree(new TreeItem(parent, SWT.NONE), leftCount - 1);
+	}
+	if (rightCount > 1) {
+		buildBinaryTree(new TreeItem(parent, SWT.NONE), rightCount - 1);
+	}
+}
+
+void depthFirstTraverse(TreeItem parent) {
+	int count = parent.getItemCount();
+	for (int i = 0; i < count ; i++) {
+		depthFirstTraverse(parent.getItem(i));
+	}
+}
+
+private void breadthFirstTraverse(TreeItem parent) {
+	Deque<TreeItem> queue = new ArrayDeque<>();
+	queue.add(parent);
+	while (!queue.isEmpty()) {
+		parent = queue.removeFirst();
+		int count = parent.getItemCount();
+		for (int i = 0; i < count ; i++) {
+			queue.add(parent.getItem(i));
+		}
+	}
+}
+
+
+/**
+ * Measures time required to do one operation
+ * @return nanoseconds
+ */
+private double measureNanos(Runnable operation) {
+	// warmup and calibration - we measure, how many iterations we can approximately do in a second
+	long warmupStop = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+	long iterationCount = 0;
+	while (System.nanoTime() < warmupStop) {
+		System.nanoTime();
+		operation.run();
+		iterationCount++;
+	}
+	if (iterationCount < 100) {
+		iterationCount = 100;
+	}
+
+	long start = System.nanoTime();
+	for (int i = 0; i < iterationCount; i++) {
+		operation.run();
+	}
+	long stop = System.nanoTime();
+	long elapsed = stop-start;
+	return ((double)elapsed) / iterationCount;
+}
+
+private double measureBinaryDepthFirstTraverse(int totalChildCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	buildBinaryTree(root, totalChildCount - 1);
+	return measureNanos(() -> depthFirstTraverse(root));
+}
+
+private void assertConstant(String message, IntFunction<Double> function) {
+	function.apply(1000); // warmmup
+	double elapsed_100 = function.apply(100);
+	double elapsed_100000 = function.apply(100000);
+	double ratio = elapsed_100000 / elapsed_100;
+	String error = String.format( "%s should be constant. But:\nTime for 100 elements: %f ns\nTime for 100000 elements: %f ns\nRatio: %f\n", message, elapsed_100, elapsed_100000, ratio);
+	assertTrue(error,  (elapsed_100000 <= 10 && elapsed_100 <= 10) || ratio < 2);
+}
+
+private void assertLinear(String message, IntFunction<Double> function) {
+	function.apply(1000); // warmmup
+	double elapsed_100 = function.apply(100);
+	double elapsed_100000 = function.apply(100000);
+	double ratio = elapsed_100000 / elapsed_100;
+	String error = String.format( "%s should be linear. But:\nTime for 100 elements: %f ns\nTime for 100000 elements: %f ns\nRatio: %f\n", message, elapsed_100, elapsed_100000, ratio);
+	assertTrue(error,  (elapsed_100000 <= 100 && elapsed_100 <= 100) || ratio < 2000);
+}
+
+@Test
+public void test_binaryDepthFirstTraversalLinearGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("Depth first traversal", this::measureBinaryDepthFirstTraverse);
+	});
+}
+
+private void buildWideTree(TreeItem root, int totalChildCount) {
+	int parentCount = (int) Math.sqrt(totalChildCount);
+	int childCount = parentCount - 1;
+
+	root.setItemCount(parentCount);
+	totalChildCount -= parentCount;
+	for (TreeItem parent: root.getItems()) {
+		parent.setItemCount(childCount);
+		totalChildCount -= childCount;
+	}
+	if (totalChildCount > 0) {
+		TreeItem parent = new TreeItem(root, SWT.NONE);
+		if (totalChildCount > 1) {
+			parent.setItemCount(totalChildCount - 1);
+		}
+	}
+}
+
+private double measureWideDepthFirstTraverse(int totalChildCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	buildWideTree(root, totalChildCount - 1);
+	return measureNanos(() -> depthFirstTraverse(root));
+}
+
+@Test
+@Ignore("https://github.com/eclipse-platform/eclipse.platform.swt/issues/882 Wide tree depth first traversal is still  bad")
+public void test_wideDepthFirstTraversalLinearGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("Depth first traversal", this::measureWideDepthFirstTraverse);
+	});
+}
+
+private double measureWideBreadthFirstTraverse(int totalChildCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	buildWideTree(root, totalChildCount - 1);
+	return measureNanos(() -> breadthFirstTraverse(root));
+}
+
+@Test
+public void test_wideBreadthFirstTraversalLinearGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("Depth first traversal", this::measureWideBreadthFirstTraverse);
 	});
 }
 
