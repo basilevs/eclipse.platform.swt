@@ -1234,6 +1234,13 @@ public void test_getItemCountNoGrowth() {
 	});
 }
 
+@Test
+public void test_setItemCountLinearGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("setItemCount execution time", this::measureSetItemCountNanos);
+	});
+}
+
 
 void buildBinaryTree(TreeItem parent, int totalChildCount) {
 	if (totalChildCount <= 0) {
@@ -1373,9 +1380,16 @@ public void test_wideBreadthFirstTraversalLinearGrowth() {
 }
 
 @Test
-public void test_updateAllChildrenLinearGrowth() {
+public void test_updateAllChildrenWideLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear("Update all children", this::measureUpdateAllChildren);
+		assertLinear("Update all children", this::measureUpdateAllChildrenWide);
+	});
+}
+
+@Test
+public void test_updateAllChildrenBinaryLinearGrowth() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("Update all children", this::measureUpdateAllChildrenBinary);
 	});
 }
 
@@ -1396,7 +1410,7 @@ public void test_breadthFirstTraverseUnique() {
 	});
 }
 
-private double measureUpdateAllChildren(int totalChildCount) {
+private double measureUpdateAllChildrenWide(int totalChildCount) {
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
 	return measureNanos(() -> {
@@ -1409,6 +1423,32 @@ private double measureUpdateAllChildren(int totalChildCount) {
 		} finally {
 			tree.setRedraw(true);
 		}
+	});
+}
+
+private double measureUpdateAllChildrenBinary(int totalChildCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	buildBinaryTree(root, totalChildCount - 1);
+	return measureNanos(() -> {
+		tree.setRedraw(false);
+		try {
+			String text = "" + System.currentTimeMillis();
+			breadthFirstTraverse(root, item -> {
+				item.setText(text);
+			});
+		} finally {
+			tree.setRedraw(true);
+		}
+	});
+}
+
+private double measureSetItemCountNanos(int totalChildCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	buildWideTree(root, totalChildCount - 1);
+	return measureNanos(() -> {
+		root.setItemCount(0);
+		root.setItemCount(totalChildCount - 1);
+		root.setItemCount(0);
 	});
 }
 
