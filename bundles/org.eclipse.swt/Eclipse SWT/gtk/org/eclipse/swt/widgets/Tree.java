@@ -197,14 +197,13 @@ TreeItem _getItem (long iter) {
 	return items [id];
 }
 
-TreeItem _getItem (int index) {
-	long parentHandle = 0;
+TreeItem _getItem (TreeItem parentItem, int index) {
 	long iter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
-	GTK.gtk_tree_model_iter_nth_child(modelHandle, iter, parentHandle, index);
+	GTK.gtk_tree_model_iter_nth_child(modelHandle, iter, parentItem == null ? 0 : parentItem.handle, index);
 	int id = getId (iter, true);
 	OS.g_free (iter);
 	if (items [id] != null) return items [id];
-	return items [id] = new TreeItem (this, null, SWT.NONE, index, false);
+	return items [id] = new TreeItem (this, parentItem, SWT.NONE, index, false);
 }
 
 void reallocateIds(int newSize) {
@@ -244,9 +243,10 @@ int findAvailableId() {
 
 int getId (long iter, boolean queryModel) {
 	if (queryModel) {
-		int[] value = new int[1];
-		GTK.gtk_tree_model_get (modelHandle, iter, ID_COLUMN, value, -1);
-		if (value [0] != -1) return value [0];
+		int id = queryItemId(iter);
+		if (id >= 0) {
+			return id;
+		}
 	}
 
 	int id = findAvailableId();
@@ -1749,7 +1749,7 @@ public TreeItem getItem (int index) {
 	if (!(0 <= index && index < GTK.gtk_tree_model_iter_n_children (modelHandle, 0)))  {
 		error (SWT.ERROR_INVALID_RANGE);
 	}
-	return _getItem (index);
+	return _getItem (null, index);
 }
 
 /**
@@ -1926,7 +1926,7 @@ public TreeItem [] getItems () {
 	if (length == 0) return result;
 	if ((style & SWT.VIRTUAL) != 0) {
 		for (int i=0; i<length; i++) {
-			result [i] = _getItem (i);
+			result [i] = _getItem (null, i);
 		}
 	} else {
 		int i = 0;
@@ -1937,7 +1937,7 @@ public TreeItem [] getItems () {
 			GTK.gtk_tree_model_get (modelHandle, iter, ID_COLUMN, index, -1);
 			TreeItem item;
 			if (index[0] < 0) {
-				item = new TreeItem(this, null, SWT.NONE, i, false);
+				item = _getItem(null, i);
 			} else {
 				item = items [index [0]];
 			}
@@ -4346,5 +4346,28 @@ public void dispose() {
 		OS.g_object_unref(headerCSSProvider);
 		headerCSSProvider = 0;
 	}
+}
+
+int queryItemId(long itemIter) {
+	int[] value = new int[1];
+	GTK.gtk_tree_model_get (modelHandle, itemIter, ID_COLUMN, value, -1);
+	return value [0];
+}
+
+boolean verifyItem(TreeItem item) {
+	if (item == null) {
+		return false;
+	}
+	int id = queryItemId(item.handle);
+	if (id < 0) {
+		return false;
+	}
+	if (items[id] == null) {
+		return false;
+	}
+	if (items[id] != item) {
+		return false;
+	}
+	return true;
 }
 }

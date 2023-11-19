@@ -180,7 +180,11 @@ TreeItem (Tree parent, TreeItem parentItem, int style, int index, boolean create
 			parentItem.items.add(index, this);
 		} else {
 			ensureSizeAtLeast(parentItem.items, index + 1);
-			parentItem.items.set(index, this);
+			TreeItem old = parentItem.items.set(index, this);
+			assert old == null;
+			if (old != null) {
+				old.dispose();
+			}
 		}
 	}
 	if (create) {
@@ -831,7 +835,7 @@ public TreeItem getItem (int index) {
 	if (index >= itemCount)  error (SWT.ERROR_INVALID_RANGE);
 	TreeItem result = items.get(index);
 	if (result == null) {
-		items.set(index, result = new TreeItem(parent, this, SWT.NONE, index, false));
+		items.set(index, result = parent._getItem(this, index));
 	}
 	return result;
 }
@@ -858,11 +862,10 @@ public TreeItem [] getItems () {
 	for (ListIterator<TreeItem> i = items.listIterator(); i.hasNext();) {
 		TreeItem next = i.next();
 		if (next == null) {
-			new TreeItem(parent, this, SWT.NONE, i.previousIndex(), false);
+			i.set(parent._getItem(this, i.previousIndex()));
 		}
 	}
 	return items.toArray(new TreeItem[items.size()]);
-
 }
 
 @Override
@@ -1773,5 +1776,11 @@ public void setText (String [] strings) {
 		String string = strings [i];
 		if (string != null) setText (i, string);
 	}
+}
+
+@Override
+protected void checkWidget() {
+	super.checkWidget();
+	assert parent.verifyItem(this);
 }
 }
