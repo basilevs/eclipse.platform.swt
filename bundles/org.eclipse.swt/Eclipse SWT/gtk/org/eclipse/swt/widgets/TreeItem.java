@@ -293,20 +293,6 @@ Image _getImage(int index) {
 	}
 }
 
-String _getText (int index) {
-	int count = Math.max (1, parent.getColumnCount ());
-	if (0 > index || index > count - 1) return "";
-	long [] ptr = new long [1];
-	int modelIndex = parent.columnCount == 0 ? Tree.FIRST_COLUMN : parent.columns [index].modelIndex;
-	GTK.gtk_tree_model_get (parent.modelHandle, handle, modelIndex + Tree.CELL_TEXT, ptr, -1);
-	if (ptr [0] == 0) return ""; //$NON-NLS-1$
-	int length = C.strlen (ptr [0]);
-	byte[] buffer = new byte [length];
-	C.memmove (buffer, ptr [0], length);
-	OS.g_free (ptr [0]);
-	return new String (Converter.mbcsToWcs (buffer));
-}
-
 void clear () {
 	if (parent.currentItem == this) return;
 	if (cached || (parent.style & SWT.VIRTUAL) == 0) {
@@ -952,7 +938,7 @@ public String getText (int index) {
 			return string != null ? string : "";
 		}
 	}
-	return _getText (index);
+	return "";
 }
 
 /**
@@ -1731,10 +1717,7 @@ public void setItemCount (int count) {
 public void setText (int index, String string) {
 	checkWidget ();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
-	if (strings == null) {
-		if (_getText (index).equals (string)) return;
-	}
-	else if ( getText (index).equals (string)) return;
+	if ( getText (index).equals (string)) return;
 
 	int count = Math.max (1, parent.getColumnCount ());
 	if (0 > index || index > count - 1) return;
@@ -1743,12 +1726,7 @@ public void setText (int index, String string) {
 		if (string.equals (strings [index])) return;
 		strings [index] = string;
 	}
-	if ((string != null) && (string.length() > TEXT_LIMIT)) {
-		string = string.substring(0, TEXT_LIMIT - ELLIPSIS.length()) + ELLIPSIS;
-	}
-	byte[] buffer = Converter.wcsToMbcs (string, true);
-	int modelIndex = parent.columnCount == 0 ? Tree.FIRST_COLUMN : parent.columns [index].modelIndex;
-	GTK.gtk_tree_store_set (parent.modelHandle, handle, modelIndex + Tree.CELL_TEXT, buffer, -1);
+
 	cached = true;
 	updated = true;
 }
@@ -1791,4 +1769,5 @@ protected void checkWidget() {
 	super.checkWidget();
 	assert parent.verifyItem(this);
 }
+
 }

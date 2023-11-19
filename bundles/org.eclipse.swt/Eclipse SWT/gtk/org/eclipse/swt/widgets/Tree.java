@@ -301,14 +301,20 @@ long cellDataProc (long tree_column, long cell, long tree_model, long iter, long
 	if (!(isPixbuf || isText)) return 0;
 	int modelIndex = -1;
 	boolean customDraw = false;
+	int columnIndex;
 	if (columnCount == 0) {
 		modelIndex = Tree.FIRST_COLUMN;
 		customDraw = firstCustomDraw;
+		columnIndex = 0;
 	} else {
 		TreeColumn column = (TreeColumn) display.getWidget (tree_column);
 		if (column != null) {
 			modelIndex = column.modelIndex;
 			customDraw = column.customDraw;
+			columnIndex = indexOf(column);
+		} else {
+			columnIndex = 0;
+			assert false;
 		}
 	}
 	if (modelIndex == -1) return 0;
@@ -323,6 +329,12 @@ long cellDataProc (long tree_column, long cell, long tree_model, long iter, long
 			updated = true;
 			item.updated = false;
 		}
+	} else {
+		if (item.updated) {
+			updated = true;
+			item.updated = false;
+			setData = true;
+		}
 	}
 	long [] ptr = new long [1];
 	if (setData) {
@@ -332,11 +344,17 @@ long cellDataProc (long tree_column, long cell, long tree_model, long iter, long
 			OS.g_object_set (cell, OS.gicon, ptr [0], 0);
 			if (ptr [0] != 0) OS.g_object_unref (ptr [0]);
 		} else {
-			ptr [0] = 0;
-			GTK.gtk_tree_model_get (tree_model, iter, modelIndex + CELL_TEXT, ptr, -1);
-			if (ptr [0] != 0) {
-				OS.g_object_set (cell, OS.text, ptr[0], 0);
-				OS.g_free (ptr[0]);
+			String string = item.getText(columnIndex);
+			if ((string != null) && (string.length() > Item.TEXT_LIMIT)) {
+				string = string.substring(0, Item.TEXT_LIMIT - Item.ELLIPSIS.length()) + Item.ELLIPSIS;
+			}
+			byte[] buffer = Converter.wcsToMbcs (string, true);
+			GTK.gtk_tree_store_set (modelHandle, item.handle, modelIndex + Tree.CELL_TEXT, buffer, 0);
+			long textPointer = OS.g_bytes_new(buffer, buffer.length);
+			try {
+				OS.g_object_set (cell, OS.text, textPointer, 0);
+			} finally {
+				OS.g_bytes_unref(textPointer);
 			}
 		}
 	}
