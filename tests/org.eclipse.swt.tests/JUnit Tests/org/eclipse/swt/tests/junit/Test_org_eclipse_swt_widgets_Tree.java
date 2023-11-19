@@ -24,7 +24,9 @@ import static org.junit.Assert.fail;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
@@ -1377,6 +1379,23 @@ public void test_updateAllChildrenLinearGrowth() {
 	});
 }
 
+@Test
+public void test_breadthFirstTraverseUnique() {
+	testTreeRegularAndVirtual(() -> {
+		int size = 1000;
+		TreeItem root = new TreeItem(tree, SWT.NONE);
+		buildWideTree(root, size - 1);
+		Set<TreeItem> items = new HashSet<>();
+		tree.setRedraw(false);
+		breadthFirstTraverse(root, item -> {
+			assertTrue(items.add(item));
+			item.setText("" + items.size() );
+		});
+		tree.setRedraw(true);
+		assertEquals(size, items.size());
+	});
+}
+
 private double measureUpdateAllChildren(int totalChildCount) {
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
@@ -1384,7 +1403,9 @@ private double measureUpdateAllChildren(int totalChildCount) {
 		tree.setRedraw(false);
 		try {
 			String text = "" + System.currentTimeMillis();
-			breadthFirstTraverse(root, item -> item.setText(text));
+			breadthFirstTraverse(root, item -> {
+				item.setText(text);
+			});
 		} finally {
 			tree.setRedraw(true);
 		}
