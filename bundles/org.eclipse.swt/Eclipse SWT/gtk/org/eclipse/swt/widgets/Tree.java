@@ -182,28 +182,41 @@ TreeItem _getItem (long iter) {
 	int id = getId (iter, true);
 	if (items [id] != null) return items [id];
 	long path = GTK.gtk_tree_model_get_path (modelHandle, iter);
-	int depth = GTK.gtk_tree_path_get_depth (path);
-	int [] indices = new int [depth];
-	C.memmove (indices, GTK.gtk_tree_path_get_indices (path), 4*depth);
-	long parentIter = 0;
-	if (depth > 1) {
-		GTK.gtk_tree_path_up (path);
-		parentIter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
-		GTK.gtk_tree_model_get_iter (modelHandle, parentIter, path);
+	if (path == 0) error(SWT.ERROR_NO_HANDLES);
+	try {
+		int depth = GTK.gtk_tree_path_get_depth (path);
+		int [] indices = new int [depth];
+		C.memmove (indices, GTK.gtk_tree_path_get_indices (path), 4*depth);
+		long parentIter = 0;
+		try {
+			if (depth > 1) {
+				GTK.gtk_tree_path_up (path);
+				parentIter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
+				GTK.gtk_tree_model_get_iter (modelHandle, parentIter, path);
+			}
+			items [id] = new TreeItem (this, parentIter == 0 ? null : _getItem(parentIter), SWT.NONE, indices [indices.length -1], iter);
+		} finally {
+			if (parentIter != 0) OS.g_free (parentIter);
+		}
+	} finally {
+		GTK.gtk_tree_path_free (path);
 	}
-	items [id] = new TreeItem (this, parentIter == 0 ? null : _getItem(parentIter), SWT.NONE, indices [indices.length -1], false);
-	GTK.gtk_tree_path_free (path);
-	if (parentIter != 0) OS.g_free (parentIter);
 	return items [id];
 }
 
 TreeItem _getItem (TreeItem parentItem, int index) {
 	long iter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
-	GTK.gtk_tree_model_iter_nth_child(modelHandle, iter, parentItem == null ? 0 : parentItem.handle, index);
-	int id = getId (iter, true);
-	OS.g_free (iter);
-	if (items [id] != null) return items [id];
-	return items [id] = new TreeItem (this, parentItem, SWT.NONE, index, false);
+	try {
+		GTK.gtk_tree_model_iter_nth_child(modelHandle, iter, parentItem == null ? 0 : parentItem.handle, index);
+		int id = getId(iter, true);
+		if (items[id] != null)
+			return items[id];
+		TreeItem result = items[id] = new TreeItem(this, parentItem, SWT.NONE, index, iter);
+		assert verifyItem(result);
+		return result;
+	} finally {
+		OS.g_free(iter);
+	}
 }
 
 void reallocateIds(int newSize) {
