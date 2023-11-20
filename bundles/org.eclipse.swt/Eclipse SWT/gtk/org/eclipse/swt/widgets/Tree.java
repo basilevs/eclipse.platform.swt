@@ -1013,10 +1013,12 @@ void createItem (TreeItem item, long parentIter, int index) {
 	 * reduces performance 3x, so try to avoid any unneeded API calls.
 	 */
 	if (index == 0) {
+		assert item.handle == 0;
 		item.handle = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
 		if (item.handle == 0) error(SWT.ERROR_NO_HANDLES);
 		GTK.gtk_tree_store_prepend (modelHandle, item.handle, parentIter);
 	} else if (index == -1) {
+		assert item.handle == 0;
 		item.handle = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
 		if (item.handle == 0) error(SWT.ERROR_NO_HANDLES);
 		GTK.gtk_tree_store_append (modelHandle, item.handle, parentIter);
@@ -4369,6 +4371,9 @@ int queryItemId(long itemIter) {
 
 boolean verifyItem(TreeItem item) {
 	if (item == null) {
+		return false;
+	}
+	if (item.handle == 0) {
 		return false;
 	}
 	int id = queryItemId(item.handle);

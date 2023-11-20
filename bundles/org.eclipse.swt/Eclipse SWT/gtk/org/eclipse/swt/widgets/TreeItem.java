@@ -190,6 +190,7 @@ TreeItem (Tree parent, TreeItem parentItem, int style, int index, long itemIter)
 	if (itemIter == 0) {
 		parent.createItem (this, parentItemHandle, index);
 	} else {
+		assert handle == 0;
 		handle = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
 		if (handle == 0) error(SWT.ERROR_NO_HANDLES);
 		C.memmove(handle, itemIter, GTK.GtkTreeIter_sizeof ());
@@ -860,12 +861,24 @@ public TreeItem getItem (int index) {
 public TreeItem [] getItems () {
 	checkWidget();
 	if (!parent.checkData (this)) error (SWT.ERROR_WIDGET_DISPOSED);
-	for (ListIterator<TreeItem> i = items.listIterator(); i.hasNext();) {
-		TreeItem next = i.next();
-		if (next == null) {
-			i.set(parent._getItem(this, i.previousIndex()));
+	long modelHandle = parent.modelHandle;
+	long iter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
+	if (iter == 0) error (SWT.ERROR_NO_HANDLES);
+	int i = 0;
+	try {
+		boolean valid = GTK.gtk_tree_model_iter_children (modelHandle, iter, handle);
+		while (valid) {
+			if (items.size() <= i || items.get(i) == null) {
+				parent._getItem(iter);
+				assert parent.verifyItem(items.get(i));
+			}
+			i++;
+			valid = GTK.gtk_tree_model_iter_next (modelHandle, iter);
 		}
+	} finally {
+		OS.g_free (iter);
 	}
+	assert items.stream().noneMatch(Objects::isNull);
 	return items.toArray(new TreeItem[items.size()]);
 }
 

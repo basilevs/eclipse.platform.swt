@@ -1304,6 +1304,7 @@ private double measureNanos(Runnable operation) {
 }
 
 private double measureBinaryDepthFirstTraverse(int totalChildCount) {
+	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildBinaryTree(root, totalChildCount - 1);
 	return measureNanos(() -> depthFirstTraverse(root));
@@ -1353,6 +1354,7 @@ private void buildWideTree(TreeItem root, int totalChildCount) {
 }
 
 private double measureWideDepthFirstTraverse(int totalChildCount) {
+	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
 	return measureNanos(() -> depthFirstTraverse(root));
@@ -1367,6 +1369,7 @@ public void test_wideDepthFirstTraversalLinearGrowth() {
 }
 
 private double measureWideBreadthFirstTraverse(int totalChildCount) {
+	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
 	return measureNanos(() -> breadthFirstTraverse(root, ignored -> {}));
@@ -1397,6 +1400,7 @@ public void test_updateAllChildrenBinaryLinearGrowth() {
 public void test_breadthFirstTraverseUnique() {
 	testTreeRegularAndVirtual(() -> {
 		int size = 1000;
+		tree.setItemCount(0);
 		TreeItem root = new TreeItem(tree, SWT.NONE);
 		buildWideTree(root, size - 1);
 		Set<TreeItem> items = new HashSet<>();
@@ -1410,7 +1414,27 @@ public void test_breadthFirstTraverseUnique() {
 	});
 }
 
+@Test
+public void test_getItemsLinear() {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear("getItems", this::measureGetItems);
+	});
+}
+
+private double measureGetItems(int totalChildCount) {
+	tree.setItemCount(0);
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+	return measureNanos(() -> {
+		root.setItemCount(0);
+		root.setItemCount(totalChildCount - 1);
+		root.getItems();
+		root.setItemCount(0);
+	});
+
+}
+
 private double measureUpdateAllChildrenWide(int totalChildCount) {
+	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
 	return measureNanos(() -> {
@@ -1427,6 +1451,7 @@ private double measureUpdateAllChildrenWide(int totalChildCount) {
 }
 
 private double measureUpdateAllChildrenBinary(int totalChildCount) {
+	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildBinaryTree(root, totalChildCount - 1);
 	return measureNanos(() -> {
@@ -1443,6 +1468,7 @@ private double measureUpdateAllChildrenBinary(int totalChildCount) {
 }
 
 private double measureSetItemCountNanos(int totalChildCount) {
+	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
 	return measureNanos(() -> {
