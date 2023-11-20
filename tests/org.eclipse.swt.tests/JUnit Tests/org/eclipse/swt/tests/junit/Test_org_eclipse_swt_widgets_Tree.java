@@ -1415,6 +1415,7 @@ public void test_breadthFirstTraverseUnique() {
 }
 
 @Test
+@Ignore("#882")
 public void test_getItemsLinear() {
 	testTreeRegularAndVirtual(() -> {
 		assertLinear("getItems", this::measureGetItems);

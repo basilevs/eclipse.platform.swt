@@ -864,7 +864,7 @@ public TreeItem [] getItems () {
 	} finally {
 		OS.g_free (iter);
 	}
-	assert items.stream().noneMatch(Objects::isNull);
+	assert items.indexOf(null) < 0;
 	return items.toArray(new TreeItem[items.size()]);
 }
 

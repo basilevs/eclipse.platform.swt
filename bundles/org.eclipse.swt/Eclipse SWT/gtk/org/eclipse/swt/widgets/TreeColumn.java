@@ -478,9 +478,8 @@ public void pack () {
 		width = requisition.width;
 	}
 	if ((parent.style & SWT.VIRTUAL) != 0) {
-		for (int i=0; i<parent.items.length; i++) {
-			TreeItem item = parent.items [i];
-			if (item != null && item.cached) {
+		for (TreeItem item: parent.items.values()) {
+			if (item.cached) {
 				width = Math.max (width, parent.calculateWidth (handle, item.handle, true));
 			}
 		}
