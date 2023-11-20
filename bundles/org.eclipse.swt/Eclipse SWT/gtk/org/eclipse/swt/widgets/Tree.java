@@ -338,18 +338,18 @@ long cellDataProc (long tree_column, long cell, long tree_model, long iter, long
 	}
 	long [] ptr = new long [1];
 	if (setData) {
+		String string = item.getText(columnIndex);
+		if ((string != null) && (string.length() > Item.TEXT_LIMIT)) {
+			string = string.substring(0, Item.TEXT_LIMIT - Item.ELLIPSIS.length()) + Item.ELLIPSIS;
+		}
+		byte[] buffer = Converter.wcsToMbcs (string, true);
+		GTK.gtk_tree_store_set (modelHandle, item.handle, modelIndex + Tree.CELL_TEXT, buffer, -1);
 		if (isPixbuf) {
 			ptr [0] = 0;
 			GTK.gtk_tree_model_get (tree_model, iter, modelIndex + CELL_PIXBUF, ptr, -1);
 			OS.g_object_set (cell, OS.gicon, ptr [0], 0);
 			if (ptr [0] != 0) OS.g_object_unref (ptr [0]);
 		} else {
-			String string = item.getText(columnIndex);
-			if ((string != null) && (string.length() > Item.TEXT_LIMIT)) {
-				string = string.substring(0, Item.TEXT_LIMIT - Item.ELLIPSIS.length()) + Item.ELLIPSIS;
-			}
-			byte[] buffer = Converter.wcsToMbcs (string, true);
-			GTK.gtk_tree_store_set (modelHandle, item.handle, modelIndex + Tree.CELL_TEXT, buffer, 0);
 			long textPointer = OS.g_bytes_new(buffer, buffer.length);
 			try {
 				OS.g_object_set (cell, OS.text, textPointer, 0);
@@ -1178,10 +1178,8 @@ void createRenderers (long columnHandle, int modelIndex, boolean check, int colu
 			}
 		}
 	}
-	if ((style & SWT.VIRTUAL) != 0 || customDraw || isOwnerDrawn) {
-		GTK.gtk_tree_view_column_set_cell_data_func (columnHandle, textRenderer, display.cellDataProc, handle, 0);
-		GTK.gtk_tree_view_column_set_cell_data_func (columnHandle, pixbufRenderer, display.cellDataProc, handle, 0);
-	}
+	GTK.gtk_tree_view_column_set_cell_data_func (columnHandle, textRenderer, display.cellDataProc, handle, 0);
+	GTK.gtk_tree_view_column_set_cell_data_func (columnHandle, pixbufRenderer, display.cellDataProc, handle, 0);
 }
 
 @Override
