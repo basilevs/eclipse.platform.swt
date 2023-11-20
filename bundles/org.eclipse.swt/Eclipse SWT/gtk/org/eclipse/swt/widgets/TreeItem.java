@@ -181,7 +181,7 @@ TreeItem (Tree parent, TreeItem parentItem, int style, int index, long itemIter)
 		} else {
 			ensureSizeAtLeast(parentItem.items, index + 1);
 			TreeItem old = parentItem.items.set(index, this);
-			assert old == null;
+			assert old == null : "An item already exists in the given location";
 			if (old != null) {
 				old.dispose();
 			}
