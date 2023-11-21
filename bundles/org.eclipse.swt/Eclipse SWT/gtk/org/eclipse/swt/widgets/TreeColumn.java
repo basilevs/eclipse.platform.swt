@@ -464,7 +464,7 @@ void hookEvents () {
  */
 public void pack () {
 	checkWidget();
-	int width = 0;
+	int [] width = new int[] {0};
 	if (buttonHandle != 0) {
 		/*
 		 * Bug 546490: Ensure the header button is set to
@@ -475,24 +475,24 @@ public void pack () {
 
 		GtkRequisition requisition = new GtkRequisition ();
 		gtk_widget_get_preferred_size (buttonHandle, requisition);
-		width = requisition.width;
+		width [0] = requisition.width;
 	}
 	if ((parent.style & SWT.VIRTUAL) != 0) {
-		for (TreeItem item: parent.items.values()) {
+		parent.getKnownItemsRecursively().forEach(item -> {
 			if (item.cached) {
-				width = Math.max (width, parent.calculateWidth (handle, item.handle, true));
+				width [0] = Math.max (width [0], parent.calculateWidth (handle, item.handle, true));
 			}
-		}
+		});
 	} else {
 		long iter = OS.g_malloc (GTK.GtkTreeIter_sizeof ());
 		if (GTK.gtk_tree_model_get_iter_first (parent.modelHandle, iter)) {
 			do {
-				width = Math.max (width, parent.calculateWidth (handle, iter, true));
+				width [0] = Math.max (width [0], parent.calculateWidth (handle, iter, true));
 			} while (GTK.gtk_tree_model_iter_next(parent.modelHandle, iter));
 		}
 		OS.g_free (iter);
 	}
-	setWidthInPixels(width);
+	setWidthInPixels(width [0]);
 }
 
 @Override

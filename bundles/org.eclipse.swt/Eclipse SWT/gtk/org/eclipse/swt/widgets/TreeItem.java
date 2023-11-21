@@ -16,6 +16,7 @@ package org.eclipse.swt.widgets;
 
 import java.util.*;
 import java.util.List;
+import java.util.stream.*;
 
 import org.eclipse.swt.*;
 import org.eclipse.swt.graphics.*;
@@ -171,20 +172,19 @@ TreeItem (Tree parent, TreeItem parentItem, int style, int index, long itemIter)
 	this.parent = parent;
 	this.parentItem = parentItem;
 	long parentItemHandle = parentItem == null? 0 : parentItem.handle;
-	if (parentItem != null) {
-		if (index < 0) {
-			index = parentItem.items.size();
-		}
-		if (itemIter == 0) {
-			ensureSizeAtLeast(parentItem.items, index);
-			parentItem.items.add(index, this);
-		} else {
-			ensureSizeAtLeast(parentItem.items, index + 1);
-			TreeItem old = parentItem.items.set(index, this);
-			assert old == null : "An item already exists in the given location";
-			if (old != null) {
-				old.dispose();
-			}
+	List<TreeItem> targetList = getSiblings();
+	if (index < 0) {
+		index = targetList.size();
+	}
+	if (itemIter == 0) {
+		ensureSizeAtLeast(targetList, index);
+		targetList.add(index, this);
+	} else {
+		ensureSizeAtLeast(targetList, index + 1);
+		TreeItem old = targetList.set(index, this);
+		assert old == null : "An item already exists in the given location";
+		if (old != null) {
+			old.dispose();
 		}
 	}
 	if (itemIter == 0) {
@@ -336,7 +336,12 @@ void clear () {
  */
 public void clear (int index, boolean all) {
 	checkWidget ();
-	parent.clear (handle, index, all);
+	TreeItem child = items.get(index);
+	if (child == null) return;
+	child.clear();
+	if (all) {
+		child.clearAll(all);;
+	}
 }
 
 /**
@@ -360,22 +365,25 @@ public void clear (int index, boolean all) {
  */
 public void clearAll (boolean all) {
 	checkWidget ();
-	parent.clearAll (all, handle);
+	for (TreeItem item: items) {
+		if (item != null) {
+			item.clear();
+			if (all) item.clearAll(all);
+		}
+	}
 }
 
 @Override
 void releaseParent() {
-	if (parentItem != null) {
-		parentItem.items.remove(this);
-	}
-	parentItem = null;
 	super.releaseParent();
 }
 
 @Override
 void destroyWidget () {
-	parent.releaseItem (this, false);
+	release(false);
 	parent.destroyItem (this);
+	boolean removed = getSiblings().remove(this);
+	assert removed : "Parent should contain the child";
 	releaseHandle ();
 }
 
@@ -856,7 +864,6 @@ public TreeItem [] getItems () {
 		while (valid) {
 			if (items.size() <= i || items.get(i) == null) {
 				parent._getItem(iter);
-				assert parent.verifyItem(items.get(i));
 			}
 			i++;
 			valid = GTK.gtk_tree_model_iter_next (modelHandle, iter);
@@ -1094,8 +1101,13 @@ void releaseChildren (boolean destroy) {
 	if (destroy) {
 		removeAll();
 		assert items.isEmpty();
-		parent.releaseItems (handle);
 	}
+	for (TreeItem item: items) {
+		if (item != null) {
+			item.release(destroy);
+		}
+	}
+	items.clear();
 	super.releaseChildren (destroy);
 }
 
@@ -1684,7 +1696,10 @@ public void setItemCount (int count) {
 			toDispose.add(item);
 		}
 	}
-	toDispose.forEach(TreeItem::dispose);
+	toDispose.forEach(item -> {
+		if (item.settingData) Tree.throwCannotRemoveItem();;
+		item.dispose();
+	});
 	extra = items.subList(count, items.size());
 	for (TreeItem item : extra) {
 		assert item == null;
@@ -1767,7 +1782,19 @@ public void setText (String [] strings) {
 @Override
 protected void checkWidget() {
 	super.checkWidget();
-	assert parent.verifyItem(this);
 }
 
+Stream<TreeItem> getKnownChildrenRecursively() {
+	return items.stream()
+		.filter(Objects::nonNull)
+		.flatMap(child -> Stream.concat(Stream.of(child), child.getKnownChildrenRecursively()));
+}
+
+List<TreeItem> getSiblings() {
+	if (parentItem != null) {
+		return parentItem.items;
+	} else {
+		return parent.roots;
+	}
+}
 }
