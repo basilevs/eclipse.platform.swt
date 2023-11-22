@@ -47,7 +47,7 @@ public class TreeItem extends Item {
 	Tree parent;
 	Font font;
 	Font[] cellFont;
-	String [] strings;
+	private final List<String> strings = new ArrayList<>(Collections.singletonList(""));
 	private TreeItem parentItem;
 	final List<TreeItem> items = new ArrayList<>();
 	boolean cached, grayed, isExpanded, updated, settingData;
@@ -177,10 +177,10 @@ TreeItem (Tree parent, TreeItem parentItem, int style, int index, long itemIter)
 		index = targetList.size();
 	}
 	if (itemIter == 0) {
-		ensureSizeAtLeast(targetList, index);
+		ensureSizeAtLeast(targetList, index, null);
 		targetList.add(index, this);
 	} else {
-		ensureSizeAtLeast(targetList, index + 1);
+		ensureSizeAtLeast(targetList, index + 1, null);
 		TreeItem old = targetList.set(index, this);
 		assert old == null : "An item already exists in the given location";
 		if (old != null) {
@@ -197,10 +197,10 @@ TreeItem (Tree parent, TreeItem parentItem, int style, int index, long itemIter)
 	}
 }
 
-static final void ensureSizeAtLeast(List<?> list, int size) {
+static final <T> void ensureSizeAtLeast(List<T> list, int size, T fill) {
 	int extra = size - list.size();
 	if (extra > 0) {
-		list.addAll(Collections.nCopies(extra, null));
+		list.addAll(Collections.nCopies(extra, fill));
 	}
 }
 
@@ -307,7 +307,8 @@ void clear () {
 	}
 	cached = false;
 	font = null;
-	strings = null;
+	strings.clear();
+	strings.add("");
 	cellFont = null;
 }
 
@@ -939,11 +940,9 @@ public String getText () {
 public String getText (int index) {
 	checkWidget ();
 	if (!parent.checkData (this)) error (SWT.ERROR_WIDGET_DISPOSED);
-	if (strings != null) {
-		if (0 <= index && index < strings.length) {
-			String string = strings [index];
-			return string != null ? string : "";
-		}
+	if (0 <= index && index < strings.size()) {
+		String string = strings.get(index);
+		return string != null ? string : "";
 	}
 	return "";
 }
@@ -1124,7 +1123,7 @@ void releaseWidget () {
 	super.releaseWidget ();
 	font = null;
 	cellFont = null;
-	strings = null;
+	strings.clear();
 }
 
 @Override
@@ -1688,7 +1687,7 @@ public void setImage (Image [] images) {
 public void setItemCount (int count) {
 	checkWidget ();
 	count = Math.max (0, count);
-	ensureSizeAtLeast(items, count);
+	ensureSizeAtLeast(items, count, null);
 	List<TreeItem> toDispose = new ArrayList<>(Math.max(0, items.size() - count));
 	List<TreeItem> extra = items.subList(count, items.size());
 	for (TreeItem item: extra) {
@@ -1732,14 +1731,13 @@ public void setItemCount (int count) {
 public void setText (int index, String string) {
 	checkWidget ();
 	if (string == null) error (SWT.ERROR_NULL_ARGUMENT);
-	if ( getText (index).equals (string)) return;
 
 	int count = Math.max (1, parent.getColumnCount ());
+	assert count == strings.size();
 	if (0 > index || index > count - 1) return;
 	if (0 <= index && index < count) {
-		if (strings == null) strings = new String [count];
-		if (string.equals (strings [index])) return;
-		strings [index] = string;
+		if (string.equals (strings.get(index))) return;
+		strings.set(index, string);
 	}
 
 	cached = true;
@@ -1782,6 +1780,7 @@ public void setText (String [] strings) {
 @Override
 protected void checkWidget() {
 	super.checkWidget();
+	if (strings.size() < 1) error(SWT.ERROR_WIDGET_DISPOSED);
 }
 
 Stream<TreeItem> getKnownChildrenRecursively() {
@@ -1795,6 +1794,14 @@ List<TreeItem> getSiblings() {
 		return parentItem.items;
 	} else {
 		return parent.roots;
+	}
+}
+
+void setColumnCount(int columnCount) {
+	if (strings.size() > columnCount) {
+		strings.subList(columnCount, strings.size()).clear();
+	} else if (strings.size() < columnCount) {
+		ensureSizeAtLeast(strings, columnCount, "");
 	}
 }
 }
