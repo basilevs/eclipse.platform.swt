@@ -34,6 +34,7 @@ import java.util.function.IntFunction;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.TreeListener;
 import org.eclipse.swt.graphics.Color;
+import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
@@ -42,7 +43,6 @@ import org.eclipse.swt.widgets.TreeColumn;
 import org.eclipse.swt.widgets.TreeItem;
 import org.eclipse.test.Screenshots;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -1322,12 +1322,17 @@ private void assertConstant(String message, IntFunction<Double> function) {
 }
 
 private void assertLinear(String message, IntFunction<Double> function) {
-	function.apply(1000); // warmmup
-	double elapsed_100 = function.apply(1000);
-	double elapsed_100000 = function.apply(1000000);
-	double ratio = elapsed_100000 / elapsed_100;
-	String error = String.format( "%s should be linear. But:\nTime for 100 elements: %f ns\nTime for 100000 elements: %f ns\nRatio: %f\n", message, elapsed_100, elapsed_100000, ratio);
-	assertTrue(error,  (elapsed_100000 <= 100 && elapsed_100 <= 100) || ratio < 2000);
+	int elementCount [] = new int[] { 10000, 100000 };
+	function.apply(elementCount[0]); // warmmup
+	double elapsed [] = new double [] {
+		function.apply(elementCount[0]),
+		function.apply(elementCount[1]),
+	};
+	double ratio =  elapsed[1] / elementCount[1] / elapsed[0] * elementCount[0];
+	double grade = Math.log(elapsed [1] / elapsed [0]) / Math.log(elementCount[1] / elementCount[0]);
+
+	String error = String.format( "%s should be linear. But:\nTime for %d elements: %f ns\nTime for %d elements: %f ns\nRatio: %f\nGrade: %f\n", message, elementCount[0], elapsed[0], elementCount[1], elapsed[1], ratio, grade);
+	assertTrue(error,  (elapsed [1] <= 100 && elapsed [0] <= 100) || grade < 1.5);
 }
 
 @Test
@@ -1363,7 +1368,6 @@ private double measureWideDepthFirstTraverse(int totalChildCount) {
 }
 
 @Test
-@Ignore("https://github.com/eclipse-platform/eclipse.platform.swt/issues/882 Wide tree depth first traversal is still  bad")
 public void test_wideDepthFirstTraversalLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
 		assertLinear("Depth first traversal", this::measureWideDepthFirstTraverse);
@@ -1385,16 +1389,38 @@ public void test_wideBreadthFirstTraversalLinearGrowth() {
 }
 
 @Test
-public void test_updateAllChildrenWideLinearGrowth() {
+public void test_setTextAllBreadthFirstWideLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear("Update all children", this::measureUpdateAllChildrenWide);
+		assertLinear("setText() breadth first, for wide tree", size -> {
+			String text = "" + System.currentTimeMillis();
+			return measureUpdateAllBreadthFirstWide(size, item -> item.setText(text));
+		});
 	});
 }
 
 @Test
-public void test_updateAllChildrenBinaryLinearGrowth() {
+public void test_updateAllBreadthFirstWideLinearGrowth() {
+	String text = "" + System.currentTimeMillis();
+	assertLinearUpdateAllBreadthFirstWide("setText", item -> item.setText(text));
+	Color color = tree.getDisplay().getSystemColor(SWT.COLOR_RED);
+	assertLinearUpdateAllBreadthFirstWide("setForeground", item -> item.setForeground(color));
+	assertLinearUpdateAllBreadthFirstWide("setBackground", item -> item.setBackground(color));
+	Font font = new Font(tree.getDisplay(), "Arial", 5, SWT.NORMAL);
+	try {
+		assertLinearUpdateAllBreadthFirstWide("setFont", item -> item.setFont(font));
+	} finally {
+		font.dispose();
+	}
+}
+
+
+@Test
+public void test_setTextAllChildrenBinaryLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear("Update all children", this::measureUpdateAllChildrenBinary);
+		assertLinear("setText() for a binary tree", count -> {
+			String text = System.currentTimeMillis() + "";
+			return measureUpdateAllBinary(count, item -> item.setText(text));
+		});
 	});
 }
 
@@ -1417,7 +1443,6 @@ public void test_breadthFirstTraverseUnique() {
 }
 
 @Test
-@Ignore("#882")
 public void test_getItemsLinear() {
 	testTreeRegularAndVirtual(() -> {
 		assertLinear("getItems", this::measureGetItems);
@@ -1436,27 +1461,24 @@ private double measureGetItems(int totalChildCount) {
 
 }
 
-private double measureUpdateAllChildrenWide(int totalChildCount) {
+private double measureUpdateAllBreadthFirstWide(int totalChildCount, Consumer<TreeItem> update) {
 	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
 	buildWideTree(root, totalChildCount - 1);
 	return measureNanos(() -> {
 		tree.setRedraw(false);
 		try {
-			String text = "" + System.currentTimeMillis();
-			breadthFirstTraverse(root, item -> {
-				item.setText(text);
-			});
+			breadthFirstTraverse(root, update);
 		} finally {
 			tree.setRedraw(true);
 		}
 	});
 }
 
-private double measureUpdateAllChildrenBinary(int totalChildCount) {
+private double measureUpdateAllBinary(int totalItemCount, Consumer<TreeItem> update) {
 	tree.setItemCount(0);
 	TreeItem root = new TreeItem(tree, SWT.NONE);
-	buildBinaryTree(root, totalChildCount - 1);
+	buildBinaryTree(root, totalItemCount - 1);
 	return measureNanos(() -> {
 		tree.setRedraw(false);
 		try {
@@ -1478,6 +1500,14 @@ private double measureSetItemCountNanos(int totalChildCount) {
 		root.setItemCount(0);
 		root.setItemCount(totalChildCount - 1);
 		root.setItemCount(0);
+	});
+}
+
+private void assertLinearUpdateAllBreadthFirstWide(String operation, Consumer<TreeItem> update) {
+	testTreeRegularAndVirtual(() -> {
+		assertLinear(operation + "() breadth first, for wide tree", size -> {
+			return measureUpdateAllBreadthFirstWide(size, update);
+		});
 	});
 }
 
