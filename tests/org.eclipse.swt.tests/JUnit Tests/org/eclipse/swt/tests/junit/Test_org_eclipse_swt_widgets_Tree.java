@@ -1287,19 +1287,24 @@ private double measureNanos(Runnable operation) {
 	long iterationCount = 0;
 	while (System.nanoTime() < warmupStop) {
 		System.nanoTime();
+		tree.setRedraw(false);
 		operation.run();
+		tree.setRedraw(true);
+		SwtTestUtil.processEvents();
 		iterationCount++;
 	}
-	if (iterationCount < 100) {
-		iterationCount = 100;
+	if (iterationCount < 10) {
+		iterationCount = 10;
 	}
 
 	SwtTestUtil.processEvents();
 	long start = System.nanoTime();
 	for (int i = 0; i < iterationCount; i++) {
+		tree.setRedraw(false);
 		operation.run();
+		tree.setRedraw(true);
+		SwtTestUtil.processEvents();
 	}
-	SwtTestUtil.processEvents();
 	long stop = System.nanoTime();
 	long elapsed = stop-start;
 	return ((double)elapsed) / iterationCount;
