@@ -864,7 +864,8 @@ public TreeItem [] getItems () {
 		boolean valid = GTK.gtk_tree_model_iter_children (modelHandle, iter, handle);
 		while (valid) {
 			if (items.size() <= i || items.get(i) == null) {
-				parent._getItem(iter);
+				new TreeItem(parent, this, SWT.NONE, i, iter);
+				assert items.get(i) != null;
 			}
 			i++;
 			valid = GTK.gtk_tree_model_iter_next (modelHandle, iter);

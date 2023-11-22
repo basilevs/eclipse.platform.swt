@@ -1330,9 +1330,10 @@ private void assertLinear(String message, IntFunction<Double> function) {
 	};
 	double ratio =  elapsed[1] / elementCount[1] / elapsed[0] * elementCount[0];
 	double grade = Math.log(elapsed [1] / elapsed [0]) / Math.log(elementCount[1] / elementCount[0]);
-
-	String error = String.format( "%s should be linear. But:\nTime for %d elements: %f ns\nTime for %d elements: %f ns\nRatio: %f\nGrade: %f\n", message, elementCount[0], elapsed[0], elementCount[1], elapsed[1], ratio, grade);
-	assertTrue(error,  (elapsed [1] <= 100 && elapsed [0] <= 100) || grade < 1.5);
+	String virtual = "non-VIRTUAL";
+	if ((tree.getStyle() & SWT.VIRTUAL) != 0) virtual = "VIRTUAL";
+	String error = String.format( "%s should be linear for %s tree. But:\nTime for %d elements: %f ns\nTime for %d elements: %f ns\nRatio: %f\nGrade: %f\n", message, virtual, elementCount[0], elapsed[0], elementCount[1], elapsed[1], ratio, grade);
+	assertTrue(error,  (elapsed [1] <= 100 && elapsed [0] <= 100) || grade < 1.3);
 }
 
 @Test
@@ -1374,18 +1375,9 @@ public void test_wideDepthFirstTraversalLinearGrowth() {
 	});
 }
 
-private double measureWideBreadthFirstTraverse(int totalChildCount) {
-	tree.setItemCount(0);
-	TreeItem root = new TreeItem(tree, SWT.NONE);
-	buildWideTree(root, totalChildCount - 1);
-	return measureNanos(() -> breadthFirstTraverse(root, ignored -> {}));
-}
-
 @Test
 public void test_wideBreadthFirstTraversalLinearGrowth() {
-	testTreeRegularAndVirtual(() -> {
-		assertLinear("Depth first traversal", this::measureWideBreadthFirstTraverse);
-	});
+	assertLinearUpdateAllBreadthFirstWide("traverse", ignored -> {});
 }
 
 @Test
