@@ -1294,10 +1294,12 @@ private double measureNanos(Runnable operation) {
 		iterationCount = 100;
 	}
 
+	SwtTestUtil.processEvents();
 	long start = System.nanoTime();
 	for (int i = 0; i < iterationCount; i++) {
 		operation.run();
 	}
+	SwtTestUtil.processEvents();
 	long stop = System.nanoTime();
 	long elapsed = stop-start;
 	return ((double)elapsed) / iterationCount;
@@ -1312,8 +1314,8 @@ private double measureBinaryDepthFirstTraverse(int totalChildCount) {
 
 private void assertConstant(String message, IntFunction<Double> function) {
 	function.apply(1000); // warmmup
-	double elapsed_100 = function.apply(100);
-	double elapsed_100000 = function.apply(100000);
+	double elapsed_100 = function.apply(1000);
+	double elapsed_100000 = function.apply(1000000);
 	double ratio = elapsed_100000 / elapsed_100;
 	String error = String.format( "%s should be constant. But:\nTime for 100 elements: %f ns\nTime for 100000 elements: %f ns\nRatio: %f\n", message, elapsed_100, elapsed_100000, ratio);
 	assertTrue(error,  (elapsed_100000 <= 10 && elapsed_100 <= 10) || ratio < 2);
@@ -1321,8 +1323,8 @@ private void assertConstant(String message, IntFunction<Double> function) {
 
 private void assertLinear(String message, IntFunction<Double> function) {
 	function.apply(1000); // warmmup
-	double elapsed_100 = function.apply(100);
-	double elapsed_100000 = function.apply(100000);
+	double elapsed_100 = function.apply(1000);
+	double elapsed_100000 = function.apply(1000000);
 	double ratio = elapsed_100000 / elapsed_100;
 	String error = String.format( "%s should be linear. But:\nTime for 100 elements: %f ns\nTime for 100000 elements: %f ns\nRatio: %f\n", message, elapsed_100, elapsed_100000, ratio);
 	assertTrue(error,  (elapsed_100000 <= 100 && elapsed_100 <= 100) || ratio < 2000);
