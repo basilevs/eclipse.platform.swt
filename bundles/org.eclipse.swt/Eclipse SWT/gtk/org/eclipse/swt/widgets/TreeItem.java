@@ -52,6 +52,7 @@ public class TreeItem extends Item {
 	final List<TreeItem> items = new ArrayList<>();
 	boolean cached, grayed, isExpanded, updated, settingData;
 	static final int EXPANDER_EXTRA_PADDING = 4;
+	private final List<Runnable> updates = new ArrayList<>();
 
 /**
  * Constructs <code>TreeItem</code> and <em>inserts</em> it into <code>Tree</code>.
@@ -1230,6 +1231,8 @@ public void setBackground (int index, Color color) {
 	if (color != null && color.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
+
+	updates.add(() -> {
 	if (_getBackground (index).equals (color)) return;
 	int count = Math.max (1, parent.getColumnCount ());
 	if (0 > index || index > count - 1) return;
@@ -1262,7 +1265,7 @@ public void setBackground (int index, Color color) {
 				parent.columns [index].customDraw = true;
 			}
 		}
-	}
+	}});
 }
 
 /**
@@ -1467,6 +1470,7 @@ public void setForeground (int index, Color color){
 	if (color != null && color.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
+	updates.add(() -> {
 	if (_getForeground (index).equals (color)) return;
 	int count = Math.max (1, parent.getColumnCount ());
 	if (0 > index || index > count - 1) return;
@@ -1499,7 +1503,7 @@ public void setForeground (int index, Color color){
 				parent.columns [index].customDraw = true;
 			}
 		}
-	}
+	}});
 }
 
 /**
@@ -1549,6 +1553,8 @@ public void setImage(int index, Image image) {
 	if (image != null && image.isDisposed()) {
 		error(SWT.ERROR_INVALID_ARGUMENT);
 	}
+
+	updates.add(() -> {
 	if (image != null && image.type == SWT.ICON) {
 		if (image.equals(_getImage(index))) return;
 	}
@@ -1635,6 +1641,7 @@ public void setImage(int index, Image image) {
 	GTK.gtk_tree_store_set(parent.modelHandle, handle, modelIndex + Tree.CELL_SURFACE, surface, -1);
 	cached = true;
 	updated = true;
+	});
 }
 
 @Override
@@ -1803,6 +1810,22 @@ void setColumnCount(int columnCount) {
 		strings.subList(columnCount, strings.size()).clear();
 	} else if (strings.size() < columnCount) {
 		ensureSizeAtLeast(strings, columnCount, "");
+	}
+}
+private  boolean updateInProgress = false;
+
+void update() {
+	// Some operations we do here are designed to invoke the cell procedure by theselfs
+	// We do not need nested call, so we reject it
+	if (updateInProgress) return;
+	updateInProgress = true;
+	try {
+	for (Runnable runnable: updates) {
+		runnable.run();
+	}
+	updates.clear();
+	} finally {
+		updateInProgress = false;
 	}
 }
 }

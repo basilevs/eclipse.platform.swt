@@ -275,6 +275,7 @@ long cellDataProc (long tree_column, long cell, long tree_model, long iter, long
 	if (modelIndex == -1) return 0;
 	boolean setData = false;
 	boolean updated = false;
+	item.update();
 	if ((style & SWT.VIRTUAL) != 0) {
 		if (!item.cached) {
 			//lastIndexOf = index [0];
