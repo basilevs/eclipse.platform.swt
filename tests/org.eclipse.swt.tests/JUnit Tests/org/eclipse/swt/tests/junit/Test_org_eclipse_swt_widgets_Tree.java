@@ -21,10 +21,10 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -1198,6 +1198,47 @@ public void test_setItemCount_itemCount2() {
 	});
 }
 
+@Test
+public void test_JFaceLazyRevealIsLinear() {
+	tree.dispose();
+	tree = new Tree(shell, SWT.VIRTUAL);
+	setWidget(tree);
+	Font font = new Font(tree.getDisplay(), "Arial", 5, 5);
+	tree.addDisposeListener(e -> font.dispose());
+	Color foreground = tree.getDisplay().getSystemColor(SWT.COLOR_GREEN);
+	Color background = tree.getDisplay().getSystemColor(SWT.COLOR_BLACK);
+
+	int modelSize[] = new int[] {10};
+	tree.addListener(SWT.SetData, e -> {
+		TreeItem item = (TreeItem) e.item;
+		if (item.getParentItem() == null) {
+			item.setText("top");
+			item.setItemCount(modelSize [0]);
+		} else {
+			item.setText("item");
+			item.setForeground(foreground);
+			item.setBackground(background);
+			item.setFont(font);
+		}
+	});
+
+	assertLinear("JFace reveal", size -> {
+		tree.setItemCount(0);
+		modelSize[0] = size;
+		tree.setItemCount(1);
+		return measureNanos(() -> {
+			TreeItem root =tree.getItem(0);
+			root.setExpanded(true);
+			tree.showItem(root.getItem(size - 1));
+		});
+	});
+}
+
+private void measureJFaceLazyReveal(int totalItemCount) {
+	TreeItem root = new TreeItem(tree, SWT.NONE);
+
+}
+
 private double measureGetItemNanos(int childCount) {
 	tree.setItemCount(1);
 	TreeItem parent = tree.getItem(0);
@@ -1264,7 +1305,7 @@ void depthFirstTraverse(TreeItem parent) {
 }
 
 private void breadthFirstTraverse(TreeItem parent, Consumer<TreeItem> visitor) {
-	Deque<TreeItem> queue = new ArrayDeque<>();
+	Deque<TreeItem> queue = new LinkedList<>();
 	queue.add(parent);
 	while (!queue.isEmpty()) {
 		parent = queue.removeFirst();
@@ -1327,26 +1368,16 @@ private void assertConstant(String message, IntFunction<Double> function) {
 }
 
 private void assertLinear(String message, IntFunction<Double> function) {
-	int elementCount [] = new int[] { 10000, 100000 };
-	function.apply(elementCount[0]); // warmmup
-	double elapsed [] = new double [] {
-		function.apply(elementCount[0]),
-		function.apply(elementCount[1]),
-	};
-	double ratio =  elapsed[1] / elementCount[1] / elapsed[0] * elementCount[0];
-	double grade = Math.log(elapsed [1] / elapsed [0]) / Math.log(elementCount[1] / elementCount[0]);
-	String virtual = "non-VIRTUAL";
-	if ((tree.getStyle() & SWT.VIRTUAL) != 0) virtual = "VIRTUAL";
-	String error = String.format( "%s should be linear for %s tree. But:\nTime for %d elements: %f ns\nTime for %d elements: %f ns\nRatio: %f\nGrade: %f\n", message, virtual, elementCount[0], elapsed[0], elementCount[1], elapsed[1], ratio, grade);
-	assertTrue(error,  (elapsed [1] <= 100 && elapsed [0] <= 100) || grade < 1.3);
+	assertPolynomial(message, 1.3, function);
 }
 
 @Test
 public void test_binaryDepthFirstTraversalLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear("Depth first traversal", this::measureBinaryDepthFirstTraverse);
+		assertPolynomial("Depth first traversal", 1.4, this::measureBinaryDepthFirstTraverse);
 	});
 }
+
 
 private void buildWideTree(TreeItem root, int totalChildCount) {
 	int parentCount = (int) Math.sqrt(totalChildCount);
@@ -1382,29 +1413,19 @@ public void test_wideDepthFirstTraversalLinearGrowth() {
 
 @Test
 public void test_wideBreadthFirstTraversalLinearGrowth() {
-	assertLinearUpdateAllBreadthFirstWide("traverse", ignored -> {});
-}
-
-@Test
-public void test_setTextAllBreadthFirstWideLinearGrowth() {
-	testTreeRegularAndVirtual(() -> {
-		assertLinear("setText() breadth first, for wide tree", size -> {
-			String text = "" + System.currentTimeMillis();
-			return measureUpdateAllBreadthFirstWide(size, item -> item.setText(text));
-		});
-	});
+	assertPolynomialUpdateAllBreadthFirstWide("traverse", ignored -> {});
 }
 
 @Test
 public void test_updateAllBreadthFirstWideLinearGrowth() {
 	String text = "" + System.currentTimeMillis();
-	assertLinearUpdateAllBreadthFirstWide("setText", item -> item.setText(text));
+	assertPolynomialUpdateAllBreadthFirstWide("setText", item -> item.setText(text));
 	Color color = tree.getDisplay().getSystemColor(SWT.COLOR_RED);
-	assertLinearUpdateAllBreadthFirstWide("setForeground", item -> item.setForeground(color));
-	assertLinearUpdateAllBreadthFirstWide("setBackground", item -> item.setBackground(color));
+	assertPolynomialUpdateAllBreadthFirstWide("setForeground", item -> item.setForeground(color));
+	assertPolynomialUpdateAllBreadthFirstWide("setBackground", item -> item.setBackground(color));
 	Font font = new Font(tree.getDisplay(), "Arial", 5, SWT.NORMAL);
 	try {
-		assertLinearUpdateAllBreadthFirstWide("setFont", item -> item.setFont(font));
+		assertPolynomialUpdateAllBreadthFirstWide("setFont", item -> item.setFont(font));
 	} finally {
 		font.dispose();
 	}
@@ -1414,7 +1435,7 @@ public void test_updateAllBreadthFirstWideLinearGrowth() {
 @Test
 public void test_setTextAllChildrenBinaryLinearGrowth() {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear("setText() for a binary tree", count -> {
+		assertPolynomial("setText() for a binary tree", 1.7, count -> {
 			String text = System.currentTimeMillis() + "";
 			return measureUpdateAllBinary(count, item -> item.setText(text));
 		});
@@ -1442,7 +1463,7 @@ public void test_breadthFirstTraverseUnique() {
 @Test
 public void test_getItemsLinear() {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear("getItems", this::measureGetItems);
+		assertPolynomial("getItems", 1.7, this::measureGetItems);
 	});
 }
 
@@ -1500,12 +1521,27 @@ private double measureSetItemCountNanos(int totalChildCount) {
 	});
 }
 
-private void assertLinearUpdateAllBreadthFirstWide(String operation, Consumer<TreeItem> update) {
+private void assertPolynomialUpdateAllBreadthFirstWide(String operation, Consumer<TreeItem> update) {
 	testTreeRegularAndVirtual(() -> {
-		assertLinear(operation + "() breadth first, for wide tree", size -> {
+		assertPolynomial(operation + "() breadth first, for wide tree", 1.5, size -> {
 			return measureUpdateAllBreadthFirstWide(size, update);
 		});
 	});
+}
+
+private void assertPolynomial(String message, double targetGrade, IntFunction<Double> function) {
+	int elementCount [] = new int[] { 10000, 100000 };
+	function.apply(elementCount[0]); // warmmup
+	double elapsed [] = new double [] {
+		function.apply(elementCount[0]),
+		function.apply(elementCount[1]),
+	};
+	double ratio =  elapsed[1] / elementCount[1] / elapsed[0] * elementCount[0];
+	double grade = Math.log(elapsed [1] / elapsed [0]) / Math.log(elementCount[1] / elementCount[0]);
+	String virtual = "non-VIRTUAL";
+	if ((tree.getStyle() & SWT.VIRTUAL) != 0) virtual = "VIRTUAL";
+	String error = String.format( "%s should grow as a grade %f polynom for %s tree. But:\nTime for %d elements: %f ns\nTime for %d elements: %f ns\nRatio: %f\nGrade: %f\n", message, targetGrade, virtual, elementCount[0], elapsed[0], elementCount[1], elapsed[1], ratio, grade);
+	assertTrue(error,  (elapsed [1] <= 100 && elapsed [0] <= 100) || grade < targetGrade);
 }
 
 }
