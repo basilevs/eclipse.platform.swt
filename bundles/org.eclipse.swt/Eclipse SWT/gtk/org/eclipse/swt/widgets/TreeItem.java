@@ -1202,10 +1202,12 @@ public void setBackground (Color color) {
 	if (color != null && color.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
+	updates.add(() -> {
 	if (_getBackground ().equals (color)) return;
 	GdkRGBA gdkRGBA = color != null ? color.handle : null;
 	GTK.gtk_tree_store_set (parent.modelHandle, handle, Tree.BACKGROUND_COLUMN, gdkRGBA, -1);
 	cached = true;
+	});
 }
 
 /**
@@ -1344,6 +1346,7 @@ public void setFont (Font font){
 	if (font != null && font.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
+	updates.add(() -> {
 	Font oldFont = this.font;
 	if (oldFont == font) return;
 	this.font = font;
@@ -1351,6 +1354,7 @@ public void setFont (Font font){
 	long fontHandle = font != null ? font.handle : 0;
 	GTK.gtk_tree_store_set (parent.modelHandle, handle, Tree.FONT_COLUMN, fontHandle, -1);
 	cached = true;
+	});
 }
 
 /**
@@ -1441,10 +1445,12 @@ public void setForeground (Color color){
 	if (color != null && color.isDisposed ()) {
 		error (SWT.ERROR_INVALID_ARGUMENT);
 	}
+	updates.add(() -> {
 	if (_getForeground ().equals (color)) return;
 	GdkRGBA gdkRGBA = color != null ? color.handle : null;
 	GTK.gtk_tree_store_set (parent.modelHandle, handle, Tree.FOREGROUND_COLUMN, gdkRGBA, -1);
 	cached = true;
+	});
 }
 
 /**
