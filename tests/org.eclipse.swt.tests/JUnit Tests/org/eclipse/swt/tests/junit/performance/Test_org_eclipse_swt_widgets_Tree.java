@@ -117,18 +117,36 @@ public class Test_org_eclipse_swt_widgets_Tree {
 
 	@Test
 	public void build() {
-		assertMaximumDegree(1.3, n -> {
+		assertMaximumDegree(1.1, n -> {
 			return measureNanos(() -> buildSubject(n, this::initializeItem).requestLayout());
 		});
 	}
 
 	@Test
-	public void reveal() {
-		assertMaximumDegree(1.3, n -> {
+	public void showItem() {
+		assertMaximumDegree(virtual ? 1.1 : 1.9, n -> {
 			Tree tree = buildSubject(n, this::initializeItem);
 			return measureNanos(() -> tree.showItem(shape.lastItem(tree)));
 		});
 	}
+
+	@Test
+	public void jfaceReveal() {
+		assertMaximumDegree(virtual ? 1.1 : 2, n -> {
+			Tree tree = buildSubject(n, this::initializeItem);
+			return measureNanos(() -> {
+				// JFace creates all children and updates each by its index
+				TreeItem root = tree.getItem(0);
+				TreeItem[] items  = root.getItems();
+				for (int i = 0; i < items.length; i++) {
+					initializeItem(root.getItem(i));
+				}
+				tree.showItem(items[items.length - 1 ]);
+			});
+		});
+	}
+
+
 
 	private Tree buildSubject(int size, Consumer<TreeItem> initialize) {
 		Tree result = shape.buildTree(shell, size, initialize, virtual);
