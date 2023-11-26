@@ -1826,10 +1826,10 @@ void update() {
 	if (updateInProgress) return;
 	updateInProgress = true;
 	try {
-	for (Runnable runnable: updates) {
-		runnable.run();
-	}
-	updates.clear();
+		while (!updates.isEmpty()) {
+			// Each update may cause further updates, do not iterate
+			updates.remove(0).run();
+		}
 	} finally {
 		updateInProgress = false;
 	}

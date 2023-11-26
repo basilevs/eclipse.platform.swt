@@ -238,6 +238,19 @@ public class Test_org_eclipse_swt_widgets_Tree {
 	}
 
 	@Test
+	public void setText() {
+		assertMaximumDegree(1.3, n -> {
+			Tree tree = buildSubject(n, this::initializeItem);
+			breadthFirstTraverse(tree, item -> {
+				item.setExpanded(true);
+			});
+			return measureNanos(() -> {
+				breadthFirstTraverse(tree, item -> item.setText("test"));
+			});
+		});
+	}
+
+	@Test
 	public void showItem() {
 		assertMaximumDegree(virtual ? 1.2 : 1.9, n -> {
 			Tree tree = buildSubject(n, this::initializeItem);
@@ -276,7 +289,7 @@ public class Test_org_eclipse_swt_widgets_Tree {
 
 	private Tree buildSubject(int size, Consumer<TreeItem> initialize) {
 		Tree result = new Tree(shell, virtual ? SWT.VIRTUAL : SWT.NONE);
-		result.requestLayout();
+		shell.layout();
 		result.setRedraw(false);
 		shape.buildTree(result, size, initialize);
 		result.setRedraw(true);

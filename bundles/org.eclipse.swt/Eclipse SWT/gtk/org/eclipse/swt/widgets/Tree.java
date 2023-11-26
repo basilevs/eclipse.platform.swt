@@ -280,6 +280,7 @@ long cellDataProc (long tree_column, long cell, long tree_model, long iter, long
 		if (!item.cached) {
 			//lastIndexOf = index [0];
 			setData = checkData (item);
+			item.update();
 		}
 		if (item.updated) {
 			updated = true;
