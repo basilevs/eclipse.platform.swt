@@ -33,6 +33,7 @@ import org.junit.runners.Suite;
 		Test_org_eclipse_swt_widgets_List.class, Test_org_eclipse_swt_widgets_Text.class,
 		Test_org_eclipse_swt_widgets_ScrollBar.class, Test_org_eclipse_swt_widgets_Sash.class,
 		Test_org_eclipse_swt_widgets_Tree.class, Test_org_eclipse_swt_widgets_TabFolder.class,
+		org.eclipse.swt.tests.junit.performance.Test_org_eclipse_swt_widgets_Tree.class,
 		Test_org_eclipse_swt_widgets_Combo.class, Test_org_eclipse_swt_widgets_Group.class,
 		Test_org_eclipse_swt_widgets_ToolBar.class, Test_org_eclipse_swt_widgets_Table.class,
 		Test_org_eclipse_swt_widgets_Canvas.class, Test_org_eclipse_swt_widgets_Scale.class,
