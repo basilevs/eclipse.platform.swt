@@ -1556,7 +1556,17 @@ public void setImage(int index, Image image) {
 					 * supposed to be rendered in. See bug 513761.
 					 */
 					boolean check = modelIndex == Tree.FIRST_COLUMN && (parent.style & SWT.CHECK) != 0;
-					parent.createRenderers(column, modelIndex, check, parent.style);
+					// Renderers can't be replaced during render on GTK 3.24.41
+					// https://github.com/eclipse-platform/eclipse.platform.swt/issues/678
+					getDisplay().asyncExec(() -> {
+						// Do not perform request when it is no longer applicable
+						if (parent.isDisposed() || parent.columns.length <= index) return;
+						// On multiple resize requests, perform only the last one
+						if (parent.pixbufHeight != iHeight || parent.pixbufWidth != iWidth) return;
+						int modelIndexAsync = parent.columnCount == 0 ? Tree.FIRST_COLUMN : parent.columns [index].modelIndex;
+						long columnAsync = GTK.gtk_tree_view_get_column (parent.handle, index);
+						parent.createRenderers(columnAsync, modelIndexAsync, check, parent.style);
+					});
 				}
 			}
 		}
