@@ -83,7 +83,7 @@ public class SwtTestUtil {
 
 	// used to specify verbose mode, if true unimplemented warning messages will
 	// be written to System.out
-	public static boolean verbose = false;
+	public static boolean verbose = true;
 
 	// allow specific image formats to be tested
 	public static String[] imageFormats = new String[] {"bmp", "jpg", "gif", "png"};

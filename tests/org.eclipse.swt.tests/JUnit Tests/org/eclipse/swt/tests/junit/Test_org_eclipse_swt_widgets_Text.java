@@ -13,12 +13,15 @@
  *******************************************************************************/
 package org.eclipse.swt.tests.junit;
 
+import static java.lang.System.currentTimeMillis;
+import static java.lang.System.nanoTime;
 import static org.eclipse.swt.tests.junit.SwtTestUtil.JENKINS_DETECT_ENV_VAR;
 import static org.eclipse.swt.tests.junit.SwtTestUtil.JENKINS_DETECT_REGEX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ModifyListener;
@@ -30,6 +33,7 @@ import org.eclipse.swt.graphics.Color;
 import org.eclipse.swt.graphics.Font;
 import org.eclipse.swt.graphics.FontData;
 import org.eclipse.swt.graphics.Point;
+import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
 import org.eclipse.swt.widgets.Group;
@@ -1376,6 +1380,58 @@ public void test_showSelection() {
 	text.showSelection();
 }
 
+// Originally reported as https://github.com/eclipse-platform/eclipse.platform.ui/issues/3920
+@Test
+public void test_finiteRedrawCancelButtonWithBackground() {
+	if ( text != null ) text.dispose();
+	// Style constants are causing
+	// org.eclipse.swt.widgets.Text.drawInteriorWithFrame_inView_searchfield(long, long, NSRect, long)
+	// to call
+	// org.eclipse.swt.internal.cocoa.NSControl.stringValue()
+	// which schedules redraw
+	text = new Text(shell, SWT.SEARCH | SWT.ICON_CANCEL);
+	// Background prevents early exit from drawInteriorWithFrame_inView_searchfield(long, long, NSRect, long)
+	text.setBackground(shell.getDisplay().getSystemColor(SWT.COLOR_RED));
+	setWidget(text);
+	shell.setLayout(new FillLayout());
+	text.requestLayout();
+	shell.open();
+	text.forceFocus();
+	waitUntilIdle();
+	assertIdle();
+}
+
+@Test
+public void test_finiteRedrawCancelButton() {
+	if ( text != null ) text.dispose();
+	// Style constants are causing
+	// org.eclipse.swt.widgets.Text.drawInteriorWithFrame_inView_searchfield(long, long, NSRect, long)
+	// to call
+	// org.eclipse.swt.internal.cocoa.NSControl.stringValue()
+	// which schedules redraw
+	text = new Text(shell, SWT.SEARCH | SWT.ICON_CANCEL);
+	setWidget(text);
+	shell.setLayout(new FillLayout());
+	text.requestLayout();
+	shell.open();
+	text.forceFocus();
+	waitUntilIdle();
+	assertIdle();
+}
+
+@Test
+public void test_finiteRedraw() {
+	if ( text != null ) text.dispose();
+	text = new Text(shell, SWT.NONE);
+	setWidget(text);
+	shell.setLayout(new FillLayout());
+	text.requestLayout();
+	shell.open();
+	text.forceFocus();
+	waitUntilIdle();
+	assertIdle();
+}
+
 /* custom */
 Text text;
 String delimiterString;
@@ -1637,6 +1693,64 @@ private void pasteFromClipboard(Text text) throws InterruptedException {
 	String oldText = text.getText();
 	text.paste();
 	SwtTestUtil.processEvents(1000, () -> !oldText.equals(text.getText()));
+}
+
+
+private void drainEventsWithTimeout() {
+	long hangTimeout = currentTimeMillis() + 1000;
+	while (currentTimeMillis() < hangTimeout) {
+		if (!shell.getDisplay().readAndDispatch()) {
+			return;
+		}
+	}
+	fail("UI scheduler should settle");
+}
+
+private void waitUntilIdle() {
+	long hangTimeout = currentTimeMillis() + 1000;
+	long lastActive = nanoTime();
+	while (currentTimeMillis() < hangTimeout) {
+		if (shell.getDisplay().readAndDispatch()) {
+			lastActive = nanoTime();
+		} else {
+			if (lastActive < nanoTime() - 1_000_000) {
+				return;
+			}
+			Thread.yield();
+		}
+	}
+	fail("Unexpected system events keep coming");
+}
+
+private void assertIdle() {
+	long start = currentTimeMillis();
+	long stop = start + 1000;
+	int eventStreakCount = 0;
+	int idleIterations = 0;
+	while (currentTimeMillis() < stop) {
+		idleIterations++;
+		// If redraws are constantly scheduled, readAndDispatch() rarely return false.
+		// Side effects - high CPU usage, asyncExec() stops working in modal contexts
+		if (shell.getDisplay().readAndDispatch()) {
+			eventStreakCount++;
+			// Skip other events of the streak
+			// No need to count events individually, as many events immediately following each other are common and normal
+			// Currently, streaks are short, but we do not want any noise to cause test failures as UI evolves
+			drainEventsWithTimeout();
+		} else {
+			Thread.yield();
+		}
+	}
+	assertTrue(idleIterations > 1000, "Some idle event loop iterations are expected when UI is doing nothing");
+	double intensity = ((double)eventStreakCount/idleIterations);
+	String message = "Detected %d/%d UI event streaks/idle event loop iterations per second, intensity  %.2g. Expected: 2/100_000.";
+
+	message = message.formatted(eventStreakCount, idleIterations, intensity);
+	assertTrue(eventStreakCount < 50, message);
+	assertTrue(intensity < 1e-4, message);
+	if (SwtTestUtil.verbose) {
+		System.out.println(message);
+	}
 }
 
 }
