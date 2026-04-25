@@ -15,6 +15,7 @@ package org.eclipse.swt.tests.junit;
 
 import static java.lang.System.currentTimeMillis;
 import static java.lang.System.nanoTime;
+import java.lang.management.ManagementFactory;
 import static org.eclipse.swt.tests.junit.SwtTestUtil.JENKINS_DETECT_ENV_VAR;
 import static org.eclipse.swt.tests.junit.SwtTestUtil.JENKINS_DETECT_REGEX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1696,16 +1697,6 @@ private void pasteFromClipboard(Text text) throws InterruptedException {
 }
 
 
-private void drainEventsWithTimeout() {
-	long hangTimeout = currentTimeMillis() + 1000;
-	while (currentTimeMillis() < hangTimeout) {
-		if (!shell.getDisplay().readAndDispatch()) {
-			return;
-		}
-	}
-	fail("UI scheduler should settle");
-}
-
 private void waitUntilIdle() {
 	long hangTimeout = currentTimeMillis() + 1000;
 	long lastActive = nanoTime();
@@ -1723,34 +1714,46 @@ private void waitUntilIdle() {
 }
 
 private void assertIdle() {
-	long start = currentTimeMillis();
-	long stop = start + 1000;
-	int eventStreakCount = 0;
-	int idleIterations = 0;
-	while (currentTimeMillis() < stop) {
-		idleIterations++;
-		// If redraws are constantly scheduled, readAndDispatch() rarely return false.
-		// Side effects - high CPU usage, asyncExec() stops working in modal contexts
-		if (shell.getDisplay().readAndDispatch()) {
-			eventStreakCount++;
-			// Skip other events of the streak
-			// No need to count events individually, as many events immediately following each other are common and normal
-			// Currently, streaks are short, but we do not want any noise to cause test failures as UI evolves
-			drainEventsWithTimeout();
-		} else {
-			Thread.yield();
-		}
-	}
-	assertTrue(idleIterations > 1000, "Some idle event loop iterations are expected when UI is doing nothing");
-	double intensity = ((double)eventStreakCount/idleIterations);
-	String message = "Detected %d/%d UI event streaks/idle event loop iterations per second, intensity  %.2g. Expected: 2/100_000.";
+	Display display = shell.getDisplay();
+	var tmx = ManagementFactory.getThreadMXBean();
+	assertTrue(tmx.isThreadCpuTimeSupported() && tmx.isThreadCpuTimeEnabled(),
+			"Thread CPU time measurement is not available on this JVM");
 
-	message = message.formatted(eventStreakCount, idleIterations, intensity);
-	assertTrue(eventStreakCount < 50, message);
-	assertTrue(intensity < 1e-4, message);
+	final int MEASURE_MS = 1000;
+	final int WAKEUP_INTERVAL_MS = 50;
+
+	// Schedule a self-rescheduling timer so that display.sleep() wakes up
+	// periodically even on platforms that generate no background events
+	// (e.g. no frame-clock ticks), keeping the deadline check reachable.
+	final boolean[] timerActive = {true};
+	Runnable wakeupTimer = new Runnable() {
+		@Override public void run() {
+			if (timerActive[0]) display.timerExec(WAKEUP_INTERVAL_MS, this);
+		}
+	};
+	display.timerExec(WAKEUP_INTERVAL_MS, wakeupTimer);
+
+	long cpuBefore = tmx.getThreadCpuTime(Thread.currentThread().getId());
+	long deadline = currentTimeMillis() + MEASURE_MS;
+	try {
+		while (currentTimeMillis() < deadline) {
+			if (!display.readAndDispatch()) {
+				display.sleep();
+			}
+		}
+	} finally {
+		timerActive[0] = false;
+		display.timerExec(-1, wakeupTimer);
+	}
+
+	long cpuNs = tmx.getThreadCpuTime(Thread.currentThread().getId()) - cpuBefore;
+	double cpuFraction = (double) cpuNs / (MEASURE_MS * 1_000_000L);
+	String message = "UI thread CPU usage should be <5%% when idle, measured %.1f%%"
+			.formatted(cpuFraction * 100);
 	if (SwtTestUtil.verbose) {
 		System.out.println(message);
 	}
+	assertTrue(cpuFraction < 0.05, message);
 }
 
 }
