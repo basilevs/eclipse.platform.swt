@@ -1720,30 +1720,19 @@ private void assertIdle() {
 			"Thread CPU time measurement is not available on this JVM");
 
 	final int MEASURE_MS = 1000;
-	final int WAKEUP_INTERVAL_MS = 50;
 
-	// Schedule a self-rescheduling timer so that display.sleep() wakes up
-	// periodically even on platforms that generate no background events
-	// (e.g. no frame-clock ticks), keeping the deadline check reachable.
-	final boolean[] timerActive = {true};
-	Runnable wakeupTimer = new Runnable() {
-		@Override public void run() {
-			if (timerActive[0]) display.timerExec(WAKEUP_INTERVAL_MS, this);
-		}
-	};
-	display.timerExec(WAKEUP_INTERVAL_MS, wakeupTimer);
+	// Schedule a single one-shot timer for the whole measurement window.
+	// When it fires it (a) sets the guard that terminates the loop, and
+	// (b) wakes display.sleep() on platforms that would otherwise block
+	// indefinitely because they generate no background events.
+	final boolean[] done = {false};
+	display.timerExec(MEASURE_MS, () -> done[0] = true);
 
 	long cpuBefore = tmx.getThreadCpuTime(Thread.currentThread().getId());
-	long deadline = currentTimeMillis() + MEASURE_MS;
-	try {
-		while (currentTimeMillis() < deadline) {
-			if (!display.readAndDispatch()) {
-				display.sleep();
-			}
+	while (!done[0]) {
+		if (!display.readAndDispatch()) {
+			display.sleep();
 		}
-	} finally {
-		timerActive[0] = false;
-		display.timerExec(-1, wakeupTimer);
 	}
 
 	long cpuNs = tmx.getThreadCpuTime(Thread.currentThread().getId()) - cpuBefore;
