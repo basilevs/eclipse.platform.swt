@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ModifyListener;
@@ -1715,8 +1714,6 @@ private void waitUntilIdle() {
 }
 
 private void assertIdle() {
-	assumeTrue(SwtTestUtil.isGTK && SwtTestUtil.isGTK4(), "CPU idle check only runs on GTK4");
-
 	Display display = shell.getDisplay();
 	var tmx = ManagementFactory.getThreadMXBean();
 	assertTrue(tmx.isThreadCpuTimeSupported() && tmx.isThreadCpuTimeEnabled(),
