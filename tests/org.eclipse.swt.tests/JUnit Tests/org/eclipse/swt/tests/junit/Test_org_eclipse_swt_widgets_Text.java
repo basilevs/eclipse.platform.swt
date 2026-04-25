@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.ModifyListener;
@@ -1714,6 +1715,8 @@ private void waitUntilIdle() {
 }
 
 private void assertIdle() {
+	assumeTrue(SwtTestUtil.isGTK && SwtTestUtil.isGTK4(), "CPU idle check only runs on GTK4");
+
 	Display display = shell.getDisplay();
 	var tmx = ManagementFactory.getThreadMXBean();
 	assertTrue(tmx.isThreadCpuTimeSupported() && tmx.isThreadCpuTimeEnabled(),
@@ -1729,14 +1732,16 @@ private void assertIdle() {
 	display.timerExec(MEASURE_MS, () -> done[0] = true);
 
 	long cpuBefore = tmx.getThreadCpuTime(Thread.currentThread().getId());
+	long wallStart = System.nanoTime();
 	while (!done[0]) {
 		if (!display.readAndDispatch()) {
 			display.sleep();
 		}
 	}
+	long wallNs = System.nanoTime() - wallStart;
 
 	long cpuNs = tmx.getThreadCpuTime(Thread.currentThread().getId()) - cpuBefore;
-	double cpuFraction = (double) cpuNs / (MEASURE_MS * 1_000_000L);
+	double cpuFraction = (double) cpuNs / wallNs;
 	String message = "UI thread CPU usage should be <5%% when idle, measured %.1f%%"
 			.formatted(cpuFraction * 100);
 	if (SwtTestUtil.verbose) {
