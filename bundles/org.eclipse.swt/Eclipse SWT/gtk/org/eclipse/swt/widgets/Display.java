@@ -129,6 +129,15 @@ public class Display extends Device implements Executor {
 	int allocated_nfds;
 	boolean wake;
 	boolean windowSizeSet;
+	/**
+	 * GTK4 only: set to {@code true} whenever a real GDK input event (key, pointer,
+	 * focus, gesture, scroll, or window-state change) is dispatched through SWT's
+	 * signal handlers.  Reset to {@code false} at the top of
+	 * {@link #readAndDispatch()}.  Used to distinguish user-input events from
+	 * frame-clock rendering callbacks (e.g. the 60 Hz cursor-blink tick) so that
+	 * the latter do not cause {@code readAndDispatch()} to return {@code true}.
+	 */
+	boolean gdkInputEventReceived;
 	int [] max_priority = new int [1], timeout = new int [1];
 	Callback eventCallback;
 	long eventProc, windowProc2, windowProc3, windowProc4, windowProc5, windowProc6;
@@ -4502,7 +4511,9 @@ public boolean readAndDispatch () {
 	events |= runPopups ();
 
 	if (GTK.GTK4) {
-		events |= OS.g_main_context_iteration (0, false);
+		gdkInputEventReceived = false;
+		OS.g_main_context_iteration (0, false);
+		events |= gdkInputEventReceived;
 	} else {
 		events |= GTK3.gtk_events_pending ();
 		GTK3.gtk_main_iteration_do (false);
@@ -6068,6 +6079,7 @@ void wakeThread () {
 }
 
 void enterMotionProc(long controller, double x, double y, long user_data) {
+	gdkInputEventReceived = true;
 	long handle = GTK.gtk_event_controller_get_widget(controller);
 	Widget widget = getWidget(handle);
 
@@ -6075,6 +6087,7 @@ void enterMotionProc(long controller, double x, double y, long user_data) {
 }
 
 boolean scrollProc(long controller, double dx, double dy, long user_data) {
+	gdkInputEventReceived = true;
 	long handle = GTK.gtk_event_controller_get_widget(controller);
 	Widget widget = getWidget(handle);
 
@@ -6084,6 +6097,7 @@ boolean scrollProc(long controller, double dx, double dy, long user_data) {
 }
 
 void focusProc(long controller, long user_data) {;
+	gdkInputEventReceived = true;
 	long handle = GTK.gtk_event_controller_get_widget(controller);
 	Widget widget = getWidget(handle);
 
@@ -6091,11 +6105,13 @@ void focusProc(long controller, long user_data) {;
 }
 
 void windowActiveProc(long handle, long user_data) {;
+	gdkInputEventReceived = true;
 	Widget widget = getWidget(handle);
 	if (widget != null) widget.windowActiveProc(handle, user_data);
 }
 
 boolean keyPressReleaseProc(long controller, int keyval, int keycode, int state, long user_data) {
+	gdkInputEventReceived = true;
 	long handle = GTK.gtk_event_controller_get_widget(controller);
 	Widget widget = getWidget(handle);
 	if (widget == null) return false;
@@ -6104,6 +6120,7 @@ boolean keyPressReleaseProc(long controller, int keyval, int keycode, int state,
 }
 
 void gesturePressReleaseProc(long gesture, int n_press, double x, double y, long user_data) {
+	gdkInputEventReceived = true;
 	long handle = GTK.gtk_event_controller_get_widget(gesture);
 	Widget widget = getWidget(handle);
 
@@ -6111,6 +6128,7 @@ void gesturePressReleaseProc(long gesture, int n_press, double x, double y, long
 }
 
 void leaveProc(long controller, long user_data) {
+	gdkInputEventReceived = true;
 	long handle = GTK.gtk_event_controller_get_widget(controller);
 	Widget widget = getWidget(handle);
 
