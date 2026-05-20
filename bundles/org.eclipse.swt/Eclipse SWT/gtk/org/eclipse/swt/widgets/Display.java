@@ -1720,14 +1720,18 @@ void snapshotDrawProc(long handle, long snapshot) {
 	// Draw background before children so it appears behind them
 	if (widget != null) widget.snapshotBackground(handle, snapshot);
 
+	// Paint before children (used by Composite subclasses for backgrounds)
+	if (widget != null) widget.snapshotToDraw(handle, snapshot);
+
 	long child = GTK4.gtk_widget_get_first_child(handle);
-	// Propagate the snapshot down the widget tree first
+	// Propagate the snapshot down the widget tree.
 	while (child != 0) {
 		GTK4.gtk_widget_snapshot_child(handle, child, snapshot);
 		child = GTK4.gtk_widget_get_next_sibling(child);
 	}
-	// Draw custom paint on top of children
-	if (widget != null) widget.snapshotToDraw(handle, snapshot);
+
+	// Paint after children (used by leaf controls for overlay/on-top drawing)
+	if (widget != null) widget.snapshotToDrawAfterChildren(handle, snapshot);
 }
 
 static long rendererGetPreferredWidthProc (long cell, long handle, long minimun_size, long natural_size) {
