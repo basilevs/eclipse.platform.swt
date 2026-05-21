@@ -1058,7 +1058,7 @@ public void test_dirtyIndicator_closesWhenCloseEnabled() {
 
 @ParameterizedTest
 @CsvSource(value = {"false,0", "false,1", "true,0", "true,1"})
-public void test_tabsAreRendered(boolean nestComposite, int activateTab) {
+public void test_tabsAreRendered(boolean nestComposite, int activateTab) throws InterruptedException {
 	Composite parent = shell;
 	Control[] children = shell.getChildren();
 	for (Control child : children) {
@@ -1082,11 +1082,13 @@ public void test_tabsAreRendered(boolean nestComposite, int activateTab) {
 	tab = createTabItem(2);
 	ctabFolder.setSelection(activateTab);
 	SwtTestUtil.processEvents();
-	bounds = tab.getBounds();
-	assertTrue(hasPixel(ctabFolder, BLUE, bounds));
+	Rectangle bounds2 = tab.getBounds();
+	System.out.println("[DEBUGCTAB] bounds: " + bounds2);
+	SwtTestUtil.processEvents(10, () -> hasPixel(ctabFolder, BLUE, bounds2));
+	assertTrue(hasPixel(ctabFolder, BLUE, bounds2));
 	tab.dispose();
 	SwtTestUtil.processEvents();
-	assertFalse(hasPixel(ctabFolder, BLUE, bounds));
+	assertFalse(hasPixel(ctabFolder, BLUE, bounds2));
 }
 
 private CTabItem createTabItem(int i) {
