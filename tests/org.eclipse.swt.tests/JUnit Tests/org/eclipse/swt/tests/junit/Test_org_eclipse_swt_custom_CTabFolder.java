@@ -1057,7 +1057,7 @@ public void test_dirtyIndicator_closesWhenCloseEnabled() {
 
 
 @ParameterizedTest
-@CsvSource(value = {"false,1", "false,2", "true,1", "true,2"})
+@CsvSource(value = {"false,0", "false,1", "true,0", "true,1"})
 public void test_tabsAreRendered(boolean nestComposite, int activateTab) {
 	Composite parent = shell;
 	Control[] children = shell.getChildren();
