@@ -1087,7 +1087,7 @@ public void test_tabsAreRendered(boolean nestComposite, int activateTab) throws 
 	SwtTestUtil.processEvents(10, () -> hasPixel(ctabFolder, BLUE, bounds2));
 	assertTrue(hasPixel(ctabFolder, BLUE, bounds2));
 	tab.dispose();
-	SwtTestUtil.processEvents();
+	SwtTestUtil.processEvents(10, () -> !hasPixel(ctabFolder, BLUE, bounds2));
 	assertFalse(hasPixel(ctabFolder, BLUE, bounds2));
 }
 
