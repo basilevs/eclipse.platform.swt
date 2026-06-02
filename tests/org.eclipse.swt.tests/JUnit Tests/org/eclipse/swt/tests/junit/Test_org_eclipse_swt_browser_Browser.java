@@ -3100,16 +3100,22 @@ public void test_TimerRegression_Issue2806() {
  * WebKit browser steals file/socket handles and never closes them.
  * When a socket is opened before Browser creation, the forked WebKit process
  * inherits the socket handle and keeps it open even after the Java side closes it.
+ *
+ * Steps from the issue:
+ * 1. Open a TCP port for listening
+ * 2. Open an embedded WebKit browser
+ * 3. Close the port
+ * 4. Assert the port is free (while browser is still alive)
  */
 @Test
 public void test_SocketHandleNotLeaked_Issue578() throws IOException {
 	assumeTrue(SwtTestUtil.isGTK, "This test is for GTK/WebKit only where fork() inherits file descriptors");
 
-	// Open a server socket on an ephemeral port
+	// Step 1: Open a TCP port for listening
 	java.net.ServerSocket serverSocket = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress());
 	int port = serverSocket.getLocalPort();
 
-	// Create a new browser (which may fork WebKit subprocess, inheriting handles)
+	// Step 2: Open an embedded WebKit browser
 	Shell testShell = new Shell(shell.getDisplay());
 	testShell.setLayout(new FillLayout());
 	Browser testBrowser = createBrowser(testShell, swtBrowserSettings);
@@ -3117,23 +3123,24 @@ public void test_SocketHandleNotLeaked_Issue578() throws IOException {
 	testShell.open();
 	processUiEvents();
 
-	// Close the server socket - port should become free
+	// Step 3: Close the port
 	serverSocket.close();
 
-	// Dispose the browser before checking the port
-	testBrowser.dispose();
-	testShell.dispose();
-	processUiEvents();
-
-	// Verify the port is free by trying to bind to it again
+	// Step 4: Assert the port is free (browser is still alive)
 	boolean portFree = false;
 	try (java.net.ServerSocket checkSocket = new java.net.ServerSocket(port, 1, java.net.InetAddress.getLoopbackAddress())) {
 		portFree = true;
 	} catch (IOException e) {
-		// Port is still in use
+		// Port is still in use - the WebKit subprocess inherited the handle
 		portFree = false;
 	}
-	assertTrue(portFree, "Port " + port + " should be free after closing the socket and disposing the browser. "
+
+	// Cleanup
+	testBrowser.dispose();
+	testShell.dispose();
+	processUiEvents();
+
+	assertTrue(portFree, "Port " + port + " should be free after closing the socket, even while the browser is still open. "
 			+ "See https://github.com/eclipse-platform/eclipse.platform.swt/issues/578");
 }
 
