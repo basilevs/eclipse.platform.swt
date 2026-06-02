@@ -3095,6 +3095,48 @@ public void test_TimerRegression_Issue2806() {
 
 }
 
+/**
+ * Regression test for https://github.com/eclipse-platform/eclipse.platform.swt/issues/578
+ * WebKit browser steals file/socket handles and never closes them.
+ * When a socket is opened before Browser creation, the forked WebKit process
+ * inherits the socket handle and keeps it open even after the Java side closes it.
+ */
+@Test
+public void test_SocketHandleNotLeaked_Issue578() throws IOException {
+	assumeTrue(SwtTestUtil.isGTK, "This test is for GTK/WebKit only where fork() inherits file descriptors");
+
+	// Open a server socket on an ephemeral port
+	java.net.ServerSocket serverSocket = new java.net.ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress());
+	int port = serverSocket.getLocalPort();
+
+	// Create a new browser (which may fork WebKit subprocess, inheriting handles)
+	Shell testShell = new Shell(shell.getDisplay());
+	testShell.setLayout(new FillLayout());
+	Browser testBrowser = createBrowser(testShell, swtBrowserSettings);
+	testBrowser.setText("Using port " + port);
+	testShell.open();
+	processUiEvents();
+
+	// Close the server socket - port should become free
+	serverSocket.close();
+
+	// Dispose the browser before checking the port
+	testBrowser.dispose();
+	testShell.dispose();
+	processUiEvents();
+
+	// Verify the port is free by trying to bind to it again
+	boolean portFree = false;
+	try (java.net.ServerSocket checkSocket = new java.net.ServerSocket(port, 1, java.net.InetAddress.getLoopbackAddress())) {
+		portFree = true;
+	} catch (IOException e) {
+		// Port is still in use
+		portFree = false;
+	}
+	assertTrue(portFree, "Port " + port + " should be free after closing the socket and disposing the browser. "
+			+ "See https://github.com/eclipse-platform/eclipse.platform.swt/issues/578");
+}
+
 /* custom */
 /**
  * Wait for passTest to return true. Timeout otherwise.
